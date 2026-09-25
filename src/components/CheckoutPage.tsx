@@ -1483,17 +1483,32 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                         <span>Email Verified</span>
                       </span>
                     ) : (
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-lg border border-amber-200 dark:border-amber-800">
                           <Mail className="w-3.5 h-3.5 text-amber-500" />
-                          <span>{emailDeliveredLive ? 'Delivered' : 'Pending verification'}</span>
+                          <span>{emailDeliveredLive ? 'Delivered to inbox/spam' : 'Verification sent'}</span>
                         </span>
                         <button
                           type="button"
                           onClick={handleVerifyEmail}
-                          className="px-2.5 py-1 bg-[#22C55E] hover:bg-[#16a34a] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                          className="px-3 py-1 bg-[#22C55E] hover:bg-[#16a34a] text-white text-xs font-bold rounded-lg shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
                         >
-                          Verify Now
+                          Verify Account Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResendVerification}
+                          disabled={isResendingEmail}
+                          className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                        >
+                          {isResendingEmail ? 'Sending...' : 'Resend Email'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCopyVerificationLink}
+                          className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                        >
+                          {isCopiedLink ? 'Copied Link!' : 'Copy Link'}
                         </button>
                       </div>
                     )}

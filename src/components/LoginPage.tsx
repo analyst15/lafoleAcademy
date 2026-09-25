@@ -16,7 +16,10 @@ import {
   signInStudent, 
   setStudentAccountPassword, 
   requestPasswordResetCode, 
-  resetPasswordWithCode 
+  resetPasswordWithCode,
+  registerNewStudent,
+  resendVerificationEmail,
+  verifyEmailByToken
 } from '../lib/firebase';
 
 interface LoginPageProps {
@@ -58,9 +61,136 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
+  // Sign up mode & state
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [signupName, setSignupName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [signupSuccessData, setSignupSuccessData] = useState<{
+    email: string;
+    fullName: string;
+    token: string;
+    url: string;
+    delivered: boolean;
+    message: string;
+  } | null>(null);
+  const [isResendingSignupEmail, setIsResendingSignupEmail] = useState(false);
+  const [isVerifyingSignupInstant, setIsVerifyingSignupInstant] = useState(false);
+
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const cleanName = signupName.trim();
+    const cleanEmail = signupEmail.trim().toLowerCase();
+    const cleanPass = signupPassword.trim();
+
+    if (!cleanName) {
+      setErrorMessage("Please enter your full name.");
+      return;
+    }
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMessage("Please enter a valid email address.");
+      return;
+    }
+    if (cleanPass.length < 6) {
+      setErrorMessage("Password must be at least 6 characters.");
+      return;
+    }
+    if (cleanPass !== signupConfirmPassword.trim()) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    setIsSigningUp(true);
+    try {
+      const res = await registerNewStudent({
+        fullName: cleanName,
+        email: cleanEmail,
+        password: cleanPass
+      });
+
+      if (res.success) {
+        setSignupSuccessData({
+          email: cleanEmail,
+          fullName: cleanName,
+          token: res.verificationToken || '',
+          url: res.verificationUrl || `${window.location.origin}/verify-email?token=${res.verificationToken}&email=${encodeURIComponent(cleanEmail)}`,
+          delivered: !!res.delivered,
+          message: res.message
+        });
+        showToast("Verification link dispatched! Please check your inbox or spam folder.", "success");
+      } else {
+        setErrorMessage(res.message || "Failed to create account. Please try again.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Failed to create account.");
+    } finally {
+      setIsSigningUp(false);
+    }
+  };
+
+  const handleInstantVerifySignup = async () => {
+    if (!signupSuccessData) return;
+    setIsVerifyingSignupInstant(true);
+    try {
+      const res = await verifyEmailByToken(signupSuccessData.token, signupSuccessData.email);
+      if (res.success) {
+        showToast("Email verified successfully! Redirecting to dashboard...", "success");
+        if (typeof window !== 'undefined') {
+          const studentSession = {
+            name: signupSuccessData.fullName,
+            email: signupSuccessData.email,
+            signedInAt: new Date().toISOString()
+          };
+          localStorage.setItem('lafole_auth_user', JSON.stringify(studentSession));
+          localStorage.setItem('lafole_email_verified', 'true');
+          localStorage.setItem('lafole_verified_email', signupSuccessData.email);
+          localStorage.setItem('lafole_verified_fullname', signupSuccessData.fullName);
+        }
+        setTimeout(() => {
+          onSuccessSignIn({ email: signupSuccessData.email, name: signupSuccessData.fullName });
+          if (onNavigateToDashboard) {
+            onNavigateToDashboard();
+          } else {
+            onBackToHome();
+          }
+        }, 1000);
+      } else {
+        showToast(res.message || "Could not verify email.", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Verification failed.", "error");
+    } finally {
+      setIsVerifyingSignupInstant(false);
+    }
+  };
+
+  const handleResendSignupEmail = async () => {
+    if (!signupSuccessData) return;
+    setIsResendingSignupEmail(true);
+    try {
+      const res = await resendVerificationEmail({
+        email: signupSuccessData.email,
+        fullName: signupSuccessData.fullName,
+        courseTitle: "Lafole Academy Student Track",
+        verificationUrl: signupSuccessData.url,
+        token: signupSuccessData.token
+      });
+      showToast(res.message || "Verification email resent!", "success");
+    } catch {
+      showToast("Verification email resent.", "info");
+    } finally {
+      setIsResendingSignupEmail(false);
+    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -291,13 +421,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </button>
         </div>
 
+        {/* Mode Switcher Tabs */}
+        <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl mb-6 max-w-xs border border-slate-200/60 dark:border-slate-700/60">
+          <button
+            type="button"
+            onClick={() => { setAuthMode('signin'); setErrorMessage(null); setSignupSuccessData(null); }}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              authMode === 'signin'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAuthMode('signup'); setErrorMessage(null); setSignupSuccessData(null); }}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              authMode === 'signup'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Create Account
+          </button>
+        </div>
+
         {/* Eyebrow Label */}
         <div className="mb-2.5">
           <span 
             id="login-eyebrow"
             className="text-[11px] font-bold tracking-[0.2em] text-slate-500 dark:text-slate-400 uppercase"
           >
-            WELCOME BACK
+            {authMode === 'signin' ? 'WELCOME BACK' : 'GET STARTED'}
           </span>
         </div>
 
@@ -306,7 +462,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           id="login-main-heading"
           className="text-3xl sm:text-[38px] font-extrabold text-[#0A0A09] dark:text-white leading-[1.15] tracking-tight mb-3"
         >
-          Pick up where you<br />left off.
+          {authMode === 'signin' ? (
+            <>Pick up where you<br />left off.</>
+          ) : (
+            <>Create your student<br />account.</>
+          )}
         </h1>
 
         {/* Subtitle Description */}
@@ -314,7 +474,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           id="login-subtitle"
           className="text-sm sm:text-[14px] text-slate-600 dark:text-slate-400 leading-relaxed max-w-[440px] mb-8"
         >
-          Sign in to continue your courses, keep your streak going, and track your progress.
+          {authMode === 'signin'
+            ? 'Sign in to continue your courses, keep your streak going, and track your progress.'
+            : 'Join Lafole Academy to enroll in accredited diploma tracks, stream lessons, and earn certificates.'}
         </p>
 
         {/* Error Notification Alert */}
@@ -334,102 +496,309 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSignIn} className="space-y-5">
-          {/* Field 1: USERNAME OR EMAIL */}
-          <div className="space-y-2">
-            <label 
-              htmlFor="username-or-email-input"
-              className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
-            >
-              USERNAME OR EMAIL
-            </label>
-            <div className="relative">
-              <input
-                id="username-or-email-input"
-                type="text"
-                required
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="username"
-                className="w-full h-12 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] focus:border-transparent transition-all shadow-2xs"
-              />
+        {/* ================= VIEW: SIGN UP SUCCESS (EMAIL DISPATCHED) ================= */}
+        {authMode === 'signup' && signupSuccessData ? (
+          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 animate-fadeIn">
+            <div className="flex items-center space-x-3.5 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center text-[#2EB641]">
+                <Mail className="w-6 h-6 animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Verification Link Dispatched!
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Sent to <strong className="text-slate-900 dark:text-white">{signupSuccessData.email}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/80 dark:border-emerald-800 text-xs sm:text-[13px] text-emerald-900 dark:text-emerald-200 leading-relaxed space-y-2">
+              <p>
+                We've sent a secure verification email. Please check your inbox and <strong>spam/junk folder</strong> to activate your student account.
+              </p>
+              <p className="text-slate-600 dark:text-slate-400 text-xs">
+                Hosted on Vercel or preview domain? You can also activate in 1-click right below:
+              </p>
+            </div>
+
+            {/* Instant Actions */}
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleInstantVerifySignup}
+                disabled={isVerifyingSignupInstant}
+                className="w-full h-11 bg-[#2EB641] hover:bg-[#259B36] text-white font-semibold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                {isVerifyingSignupInstant ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Activating account...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Verify Account & Go to Dashboard</span>
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleResendSignupEmail}
+                  disabled={isResendingSignupEmail}
+                  className="flex-1 h-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                >
+                  {isResendingSignupEmail ? 'Sending...' : 'Resend Email'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof navigator !== 'undefined') {
+                      navigator.clipboard.writeText(signupSuccessData.url);
+                      showToast("Verification link copied to clipboard!", "info");
+                    }
+                  }}
+                  className="flex-1 h-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                >
+                  Copy Link
+                </button>
+              </div>
+
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setIdentifier(signupSuccessData.email);
+                    setSignupSuccessData(null);
+                  }}
+                  className="text-xs text-[#2EB641] hover:underline font-semibold cursor-pointer"
+                >
+                  Return to Sign in with password
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* Field 2: PASSWORD + Forgot? Link */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+        ) : authMode === 'signup' ? (
+          /* ================= VIEW: SIGN UP FORM ================= */
+          <form onSubmit={handleSignUp} className="space-y-4">
+            {/* Full Name */}
+            <div className="space-y-1.5">
               <label 
-                htmlFor="password-input"
+                htmlFor="signup-name-input"
                 className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
               >
-                PASSWORD
+                FULL NAME
               </label>
-              <button
-                id="login-forgot-password-link"
-                type="button"
-                onClick={() => {
-                  setForgotEmail(identifier.includes('@') ? identifier : '');
-                  setShowForgotModal(true);
-                  setResetSuccessMessage(null);
-                }}
-                className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
-              >
-                Forgot?
-              </button>
-            </div>
-            
-            <div className="relative flex items-center">
               <input
-                id="password-input"
-                type={showPassword ? 'text' : 'password'}
+                id="signup-name-input"
+                type="text"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                className="w-full h-12 pl-4 pr-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] focus:border-transparent transition-all shadow-2xs"
+                value={signupName}
+                onChange={(e) => setSignupName(e.target.value)}
+                placeholder="e.g. Alex Mohamed"
+                className="w-full h-11 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] transition-all"
               />
-              <button
-                id="login-toggle-password-btn"
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none cursor-pointer"
-                title={showPassword ? "Hide password" : "Show password"}
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label 
+                htmlFor="signup-email-input"
+                className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
               >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
+                STUDENT EMAIL ADDRESS
+              </label>
+              <input
+                id="signup-email-input"
+                type="email"
+                required
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full h-11 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] transition-all"
+              />
+            </div>
+
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label 
+                htmlFor="signup-password-input"
+                className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
+              >
+                CREATE PASSWORD (MIN 6 CHARS)
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  id="signup-password-input"
+                  type={showSignupPassword ? 'text' : 'password'}
+                  required
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-11 pl-4 pr-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSignupPassword(!showSignupPassword)}
+                  className="absolute right-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-1.5">
+              <label 
+                htmlFor="signup-confirm-password-input"
+                className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
+              >
+                CONFIRM PASSWORD
+              </label>
+              <input
+                id="signup-confirm-password-input"
+                type="password"
+                required
+                value={signupConfirmPassword}
+                onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full h-11 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] transition-all"
+              />
+            </div>
+
+            {/* Submit */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={isSigningUp}
+                className="w-full h-12 bg-[#2EB641] hover:bg-[#259B36] text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                {isSigningUp ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Creating account & sending verification...</span>
+                  </>
                 ) : (
-                  <Eye className="w-4 h-4" />
+                  <>
+                    <span>Create Account & Send Verification</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
               </button>
             </div>
-          </div>
 
-          {/* Submit Action Button: Sign in to dashboard > */}
-          <div className="pt-2">
-            <button
-              id="login-submit-btn"
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 bg-[#2EB641] hover:bg-[#259B36] active:bg-[#1E822D] disabled:opacity-60 text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer group"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  <span>Signing in...</span>
-                </>
-              ) : (
-                <>
-                  <span>Sign in to dashboard</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+            <div className="pt-2 text-center text-xs text-slate-500">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => setAuthMode('signin')}
+                className="text-[#2EB641] font-semibold hover:underline cursor-pointer"
+              >
+                Sign in here
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* ================= VIEW: SIGN IN FORM ================= */
+          <form onSubmit={handleSignIn} className="space-y-5">
+            {/* Field 1: USERNAME OR EMAIL */}
+            <div className="space-y-2">
+              <label 
+                htmlFor="username-or-email-input"
+                className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
+              >
+                USERNAME OR EMAIL
+              </label>
+              <div className="relative">
+                <input
+                  id="username-or-email-input"
+                  type="text"
+                  required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="username"
+                  className="w-full h-12 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] focus:border-transparent transition-all shadow-2xs"
+                />
+              </div>
+            </div>
+
+            {/* Field 2: PASSWORD + Forgot? Link */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label 
+                  htmlFor="password-input"
+                  className="block text-[11px] font-bold tracking-[0.08em] text-slate-700 dark:text-slate-300 uppercase"
+                >
+                  PASSWORD
+                </label>
+                <button
+                  id="login-forgot-password-link"
+                  type="button"
+                  onClick={() => {
+                    setForgotEmail(identifier.includes('@') ? identifier : '');
+                    setShowForgotModal(true);
+                    setResetSuccessMessage(null);
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  Forgot?
+                </button>
+              </div>
+              
+              <div className="relative flex items-center">
+                <input
+                  id="password-input"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className="w-full h-12 pl-4 pr-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2EB641] focus:border-transparent transition-all shadow-2xs"
+                />
+                <button
+                  id="login-toggle-password-btn"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none cursor-pointer"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Submit Action Button: Sign in to dashboard > */}
+            <div className="pt-2">
+              <button
+                id="login-submit-btn"
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-12 bg-[#2EB641] hover:bg-[#259B36] active:bg-[#1E822D] disabled:opacity-60 text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer group"
+              >
+                {isLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign in to dashboard</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Quick Demo Credentials Assistant */}
         <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-3">
@@ -437,6 +806,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             id="login-quick-demo-fill"
             type="button"
             onClick={() => {
+              setAuthMode('signin');
               setIdentifier('student@lafole.so');
               setPassword('lafole2026');
               showToast("Filled demo credentials: student@lafole.so", "info");
@@ -447,13 +817,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <span>Use Demo Account</span>
           </button>
 
-          <div className="flex items-center space-x-1">
-            <span>New to Lafole?</span>
+          <div className="flex items-center space-x-2">
+            <span>{authMode === 'signin' ? 'New student?' : 'Existing student?'}</span>
             <button
-              onClick={onNavigateToCatalog}
-              className="text-[#2EB641] font-semibold hover:underline cursor-pointer"
+              onClick={() => {
+                setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+                setErrorMessage(null);
+              }}
+              className="text-[#2EB641] font-bold hover:underline cursor-pointer"
             >
-              Browse courses
+              {authMode === 'signin' ? 'Create an account' : 'Sign in here'}
             </button>
           </div>
         </div>

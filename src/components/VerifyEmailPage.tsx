@@ -28,7 +28,7 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('token') || '';
+    const token = params.get('token') || params.get('oobCode') || '';
     const email = params.get('email') || '';
     setVerifiedEmail(email);
 

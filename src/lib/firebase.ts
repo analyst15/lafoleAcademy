@@ -17,6 +17,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  applyActionCode,
   updatePassword
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -90,7 +92,7 @@ export interface ClientDetails {
   phoneNumber: string;
   country?: string;
   email: string;
-  whatsappReceipts: boolean;
+  whatsappReceipts?: boolean;
   courseId: string;
   courseTitle: string;
   amount: number;
@@ -138,11 +140,33 @@ export async function saveClientDetailsAndInitiateVerification(
   let computedHash = details.passwordHash;
   if (details.password && details.password.trim()) {
     computedHash = await hashPassword(details.password.trim());
-    // Also attempt Firebase Auth user registration if enabled
+    // Attempt Firebase Auth user registration and send real verification email
     try {
-      await createUserWithEmailAndPassword(auth, details.email.trim().toLowerCase(), details.password.trim());
+      const userCred = await createUserWithEmailAndPassword(auth, details.email.trim().toLowerCase(), details.password.trim());
+      if (userCred?.user) {
+        try {
+          await sendEmailVerification(userCred.user, {
+            url: verificationUrl,
+            handleCodeInApp: true
+          });
+          console.info("[Firebase Auth] Verification email dispatched to:", details.email);
+        } catch (vErr) {
+          console.warn("[Firebase Auth] sendEmailVerification note:", vErr);
+        }
+      }
     } catch (fbAuthErr: any) {
-      // Ignored if email exists, offline, or provider not enabled
+      if (fbAuthErr?.code === 'auth/email-already-in-use') {
+        try {
+          const userCred = await signInWithEmailAndPassword(auth, details.email.trim().toLowerCase(), details.password.trim());
+          if (userCred?.user && !userCred.user.emailVerified) {
+            await sendEmailVerification(userCred.user, {
+              url: verificationUrl,
+              handleCodeInApp: true
+            });
+            console.info("[Firebase Auth] Verification email resent to existing user:", details.email);
+          }
+        } catch {}
+      }
     }
   }
 
@@ -347,6 +371,16 @@ export async function resendVerificationEmail(params: {
       });
     } catch {}
 
+    // Dispatch via Firebase Auth if active
+    try {
+      if (auth.currentUser && auth.currentUser.email?.toLowerCase() === params.email.toLowerCase()) {
+        await sendEmailVerification(auth.currentUser, {
+          url: params.verificationUrl,
+          handleCodeInApp: true
+        });
+      }
+    } catch {}
+
     let delivered = false;
     try {
       const apiRes = await fetch('/api/send-email', {
@@ -378,12 +412,65 @@ export async function resendVerificationEmail(params: {
       delivered,
       message: delivered
         ? `Verification email delivered to ${params.email}`
-        : `Verification link generated for ${params.email}` 
+        : `Verification link generated for ${params.email}. Check inbox or verify in 1-click.` 
     };
   } catch (err: any) {
     return {
       success: false,
       message: err?.message || "Failed to resend verification email."
+    };
+  }
+}
+
+/**
+ * Registers a new student account directly from the Login / Sign Up page
+ */
+export async function registerNewStudent(params: {
+  fullName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  verificationToken?: string;
+  verificationUrl?: string;
+  delivered?: boolean;
+}> {
+  try {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const cleanName = params.fullName.trim() || 'Student';
+    const cleanPassword = params.password.trim();
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: "Please provide a valid email address." };
+    }
+    if (!cleanPassword || cleanPassword.length < 6) {
+      return { success: false, message: "Password must be at least 6 characters long." };
+    }
+
+    const res = await saveClientDetailsAndInitiateVerification({
+      fullName: cleanName,
+      email: cleanEmail,
+      phoneNumber: params.phoneNumber?.trim() || '',
+      password: cleanPassword,
+      courseId: 'general-student',
+      courseTitle: 'Lafole Academy Student Track',
+      amount: 0,
+      currency: 'USD'
+    });
+
+    return {
+      success: true,
+      message: res.deliveryMessage || `Verification link generated for ${cleanEmail}! Please check your email inbox and spam folder.`,
+      verificationToken: res.verificationToken,
+      verificationUrl: res.verificationUrl,
+      delivered: res.delivered
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to register new student account."
     };
   }
 }
@@ -399,6 +486,13 @@ export async function verifyEmailByToken(
     if (!token && !email) {
       return { success: false, message: "Missing verification token or email." };
     }
+
+    // Attempt Firebase Auth action code verification if token looks like an oobCode
+    try {
+      if (token && token.length > 15 && !token.startsWith('tok_')) {
+        await applyActionCode(auth, token);
+      }
+    } catch {}
 
     // Prepare local fallback record
     let fallbackRecord: any = null;

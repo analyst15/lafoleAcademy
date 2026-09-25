@@ -613,7 +613,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {/* Primary Action Button: Start learning */}
                 <button
                   id="btn-start-learning"
-                  onClick={() => setActiveView('learn')}
+                  onClick={() => setActiveView('catalog')}
                   className="flex items-center space-x-1.5 h-9 px-3.5 sm:px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-[500] rounded-lg shadow-xs transition-all hover:scale-[1.01] flex-shrink-0 cursor-pointer whitespace-nowrap"
                 >
                   <span>Start learning</span>
