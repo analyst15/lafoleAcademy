@@ -1,0 +1,316 @@
+export interface DiplomaTrack {
+  id: string;
+  slug: string;
+  title: string;
+  tagline: string;
+  description: string;
+  category: string;
+  badge: string;
+  coursesCount: number;
+  lessonsCount: number;
+  durationMonths: number;
+  durationPill: string;
+  estimatedHours: number;
+  price: number;
+  levelPill: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+  level: 'Beginner to Advanced' | 'Intermediate to Pro' | 'Foundation to Specialist';
+  imageUrl: string;
+  iconType: 'book' | 'cpu' | 'network' | 'cloud' | 'shield' | 'code' | 'palette' | 'chart';
+  accentColor: string;
+  iconBg: string;
+  iconColor: string;
+  careerRoles: string[];
+  certifications: string[];
+  courseNames: string[];
+  prerequisites: string;
+}
+
+export const DIPLOMA_TRACKS: DiplomaTrack[] = [
+  {
+    id: 'diploma-literacy',
+    slug: 'computer-literacy-diploma',
+    title: 'Computer Literacy Diploma',
+    tagline: 'Aas aaska barashada Computer-ka iyo xirfadaha xafiisyada casriga ah.',
+    description: 'Computer Literacy Diploma Waa Diploma aad ku baranayso aas aaska Computer-ka, Microsoft Office 365, Internetka, Amniga xogta, iyo maaraynta faylashada.',
+    category: 'Foundations & Productivity',
+    badge: 'Core Foundation',
+    coursesCount: 8,
+    lessonsCount: 438,
+    durationMonths: 4,
+    durationPill: '4-MO',
+    estimatedHours: 54,
+    price: 200,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'book',
+    accentColor: '#0284C7',
+    iconBg: 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800',
+    iconColor: 'text-sky-600 dark:text-sky-400',
+    careerRoles: ['Office Administrator', 'Data Entry Specialist', 'Executive Assistant', 'IT Clerk'],
+    certifications: ['Lafole Certified Computer Operator (LCCO)', 'Microsoft Office Specialist Ready'],
+    courseNames: [
+      'Introduction to Computer Hardware & Windows 11',
+      'Microsoft Word: Professional Document Formatting',
+      'Microsoft Excel: Spreadsheets, Formulas & Data Analysis',
+      'Microsoft PowerPoint: Engaging Business Presentations',
+      'Cloud Storage, Google Workspace & Microsoft 365',
+      'Safe Internet Browsing, Email Etiquette & Cyber Hygiene',
+      'Touch Typing Mastery & Keyboard Productivity',
+      'Capstone: Corporate Office Simulation & Final Project'
+    ],
+    prerequisites: 'No prior computer experience required. Complete beginner friendly.'
+  },
+  {
+    id: 'diploma-it-support',
+    slug: 'it-support-pro-diploma',
+    title: 'IT Support Pro Diploma',
+    tagline: 'Xalka cilladaha Hardware-ka, Windows Server, Active Directory iyo Helpdesk.',
+    description: 'Si aad lugta ula gasho gayiga shaqooyinka ITga waxaad barataa Xirfadaan IT Support Professional oo ku baraysa cilad bixinta kombuyuutarrada, maamulka shabakadaha iyo server-rada.',
+    category: 'IT Support & Systems',
+    badge: 'High Employment',
+    coursesCount: 11,
+    lessonsCount: 1043,
+    durationMonths: 6,
+    durationPill: '6-MO',
+    estimatedHours: 166,
+    price: 300,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'cpu',
+    accentColor: '#0D9488',
+    iconBg: 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800',
+    iconColor: 'text-teal-600 dark:text-teal-400',
+    careerRoles: ['IT Support Specialist', 'Helpdesk Engineer', 'Desktop Support Technician', 'Junior Systems Admin'],
+    certifications: ['Lafole Certified IT Support Professional (LCITP)', 'CompTIA A+ & Network+ Aligned'],
+    courseNames: [
+      'Computer Hardware Troubleshooting & Component Diagnostics',
+      'Operating Systems: Windows 11 Enterprise & Linux Workstation',
+      'Networking Essentials: IPv4, Subnetting, Routers & Switches',
+      'Windows Server 2022 Installation, Storage & Roles',
+      'Active Directory Domain Services (AD DS) & Group Policy (GPO)',
+      'Microsoft 365, Azure AD (Entra ID) & Cloud Helpdesk',
+      'Virtualization with VMware Workstation & Proxmox VE',
+      'Helpdesk Ticketing Systems, SLA & ITIL Foundations',
+      'Data Backup, RAID Configurations & Disaster Recovery',
+      'Enterprise Endpoint Antivirus & Security Hardening',
+      'Capstone: Deploying & Managing Corporate IT Infrastructure'
+    ],
+    prerequisites: 'Basic computer literacy.'
+  },
+  {
+    id: 'diploma-network',
+    slug: 'network-infrastructure-systems',
+    title: 'Network Infrastructure & Systems Engineering Diploma',
+    tagline: 'Design, configure, and maintain mission-critical enterprise networks.',
+    description: 'Dhis oo maamul shabakadaha waaweyn ee shirkadaha adigoo adeegsanaya Cisco CCNA, MikroTik ISP configuration, Linux enterprise servers, OSPF, VLANs iyo fiber optic.',
+    category: 'Networking & Infrastructure',
+    badge: 'Flagship Diploma',
+    coursesCount: 9,
+    lessonsCount: 712,
+    durationMonths: 6,
+    durationPill: '6-MO',
+    estimatedHours: 190,
+    price: 350,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'network',
+    accentColor: '#0284C7',
+    iconBg: 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800',
+    iconColor: 'text-sky-600 dark:text-sky-400',
+    careerRoles: ['Network Engineer', 'ISP Systems Administrator', 'NOC Specialist', 'Infrastructure Architect'],
+    certifications: ['Lafole Certified Network Engineer (LCNE)', 'Cisco CCNA 200-301 Alignment'],
+    courseNames: [
+      'Networking Fundamentals & IP Subnetting',
+      'Cisco CCNA Routing & Switching Mastery',
+      'MikroTik MTCNA RouterOS Configuration',
+      'Enterprise VLANs, STP & OSPF Routing',
+      'Linux Server Administration for Network Admins',
+      'Network Security, Firewalls & WireGuard VPNs',
+      'ISP Bandwidth Management & Queuing',
+      'Fiber Optic & Structured Cabling Architecture',
+      'Capstone: Production Enterprise Network Deployment'
+    ],
+    prerequisites: 'Basic computer literacy. No prior networking experience required.'
+  },
+  {
+    id: 'diploma-cloud-devops',
+    slug: 'cloud-devops-engineering',
+    title: 'Cloud Infrastructure & DevOps Diploma',
+    tagline: 'Automate deployments, orchestrate containers, and architect scalable cloud infrastructure.',
+    description: 'Baro dhismaha iyo kormeerka Kaabayaasha Cloud-ka adigoo adeegsanaya AWS, Docker containerization, Kubernetes clusters, Terraform IaC, iyo CI/CD pipelines.',
+    category: 'Cloud & DevOps',
+    badge: 'High Industry Demand',
+    coursesCount: 8,
+    lessonsCount: 680,
+    durationMonths: 6,
+    durationPill: '6-MO',
+    estimatedHours: 175,
+    price: 350,
+    levelPill: 'INTERMEDIATE',
+    level: 'Intermediate to Pro',
+    imageUrl: 'https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'cloud',
+    accentColor: '#6366F1',
+    iconBg: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800',
+    iconColor: 'text-indigo-600 dark:text-indigo-400',
+    careerRoles: ['DevOps Engineer', 'Cloud Architect', 'Site Reliability Engineer (SRE)', 'Platform Engineer'],
+    certifications: ['Lafole Certified Cloud Architect (LCCA)', 'AWS Solutions Architect Associate Ready'],
+    courseNames: [
+      'Linux Shell Scripting & Automation',
+      'Docker Deep Dive & Container Architecture',
+      'Kubernetes Cluster Orchestration & Helm',
+      'AWS Cloud Core Services & Architecture',
+      'Terraform & Infrastructure as Code (IaC)',
+      'GitHub Actions & Continuous Delivery (CI/CD)',
+      'Prometheus, Grafana & Cloud Observability',
+      'Capstone: High-Availability Multi-Region Microservices'
+    ],
+    prerequisites: 'Familiarity with basic command line and programming concepts.'
+  },
+  {
+    id: 'diploma-cybersecurity',
+    slug: 'cybersecurity-soc-operations',
+    title: 'Cybersecurity & SOC Operations Diploma',
+    tagline: 'Defend networks, detect intrusions, and respond to modern cyber threats.',
+    description: 'Ilaali xogta shirkadaha, baadh nuglaanta amniga, kana jawaab weerarrada internetka adigoo adeegsanaya Kali Linux, Wireshark, Splunk SIEM, iyo Ethical Hacking.',
+    category: 'Cybersecurity',
+    badge: 'Defense Certified',
+    coursesCount: 10,
+    lessonsCount: 795,
+    durationMonths: 7,
+    durationPill: '7-MO',
+    estimatedHours: 210,
+    price: 400,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'shield',
+    accentColor: '#DC2626',
+    iconBg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800',
+    iconColor: 'text-rose-600 dark:text-rose-400',
+    careerRoles: ['SOC Analyst', 'Cybersecurity Specialist', 'Penetration Tester', 'Security Administrator'],
+    certifications: ['Lafole Certified Security Analyst (LCSA)', 'CompTIA Security+ Alignment'],
+    courseNames: [
+      'Cybersecurity Fundamentals & Threat Landscapes',
+      'Network Vulnerability Assessment & Wireshark',
+      'Linux & Windows Security Hardening',
+      'Ethical Hacking with Kali Linux & Metasploit',
+      'Web Application Security & OWASP Top 10',
+      'SOC Operations & SIEM with Splunk/Elastic',
+      'Digital Forensics & Incident Response (DFIR)',
+      'Identity & Access Management (IAM) and Zero Trust',
+      'Security Compliance, Auditing & Risk Management',
+      'Capstone: Simulated Red vs Blue Team Cyber War-Game'
+    ],
+    prerequisites: 'Basic networking and operating system knowledge recommended.'
+  },
+  {
+    id: 'diploma-fullstack',
+    slug: 'fullstack-web-development',
+    title: 'Full-Stack Web Development Diploma',
+    tagline: 'Build end-to-end modern web applications with React, TypeScript, and Node.js.',
+    description: 'Dhis barnaamijyo casri ah oo dhameystiran adigoo baranaya React, TypeScript, Node.js REST APIs, Next.js, PostgreSQL databases, iyo State Management.',
+    category: 'Software Engineering',
+    badge: 'Most Popular',
+    coursesCount: 10,
+    lessonsCount: 820,
+    durationMonths: 8,
+    durationPill: '8-MO',
+    estimatedHours: 230,
+    price: 350,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'code',
+    accentColor: '#16A34A',
+    iconBg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800',
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    careerRoles: ['Full-Stack Developer', 'Frontend Engineer', 'Backend Engineer', 'Technical Lead'],
+    certifications: ['Lafole Certified Full-Stack Engineer (LCFSE)'],
+    courseNames: [
+      'Modern HTML5, CSS3 & Responsive Web Design',
+      'JavaScript ES6+ Deep Dive & Asynchronous Programming',
+      'TypeScript for Production Applications',
+      'React.js & Modern Component Architecture',
+      'Next.js 14, Server Components & SSR',
+      'Node.js & Express RESTful API Development',
+      'Relational Databases with PostgreSQL & Prisma ORM',
+      'State Management, Zustand & React Query',
+      'Authentication, OAuth & Security Best Practices',
+      'Capstone: Commercial SaaS Application with Payments'
+    ],
+    prerequisites: 'None. Complete beginner-friendly track.'
+  },
+  {
+    id: 'diploma-design',
+    slug: 'graphic-design-brand-identity',
+    title: 'Graphic Design & Brand Identity Diploma',
+    tagline: 'Master visual communication, UI/UX typography, and commercial branding.',
+    description: 'Baro naqshadeynta heerka sare ah adigoo adeegsanaya Adobe Photoshop, Illustrator, InDesign, Figma UI/UX, iyo dhismaha astaamaha ganacsiga (Brand Identity).',
+    category: 'Design & Media',
+    badge: 'Creative Portfolio',
+    coursesCount: 7,
+    lessonsCount: 540,
+    durationMonths: 5,
+    durationPill: '5-MO',
+    estimatedHours: 150,
+    price: 250,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'palette',
+    accentColor: '#EC4899',
+    iconBg: 'bg-pink-50 dark:bg-pink-950/40 border-pink-200 dark:border-pink-800',
+    iconColor: 'text-pink-600 dark:text-pink-400',
+    careerRoles: ['Brand Designer', 'UI/UX Designer', 'Visual Content Creator', 'Creative Director'],
+    certifications: ['Lafole Certified Graphic Designer (LCGD)'],
+    courseNames: [
+      'Design Theory, Composition & Color Harmony',
+      'Adobe Illustrator: Vector Art & Logo Creation',
+      'Adobe Photoshop: Photo Manipulation & Retouching',
+      'Typography, Layout & Editorial Design with InDesign',
+      'Figma: UI/UX Wireframing & Interactive Prototyping',
+      'Brand Identity Systems & Visual Guidelines',
+      'Capstone: Complete Brand Identity Portfolio Showcase'
+    ],
+    prerequisites: 'Creative mindset and basic computer skills.'
+  },
+  {
+    id: 'diploma-marketing',
+    slug: 'digital-marketing-growth-strategy',
+    title: 'Digital Marketing & Growth Strategy Diploma',
+    tagline: 'Drive customer acquisition, scale paid ad campaigns, and dominate search rankings.',
+    description: 'Baro xayaysiisyada lacagta ah ee Meta Ads & Google Ads, Technical SEO, Google Analytics 4, kobcinta iibka shirkadaha, iyo iib-geynta Email-ka.',
+    category: 'Growth & Marketing',
+    badge: 'Revenue Focused',
+    coursesCount: 8,
+    lessonsCount: 610,
+    durationMonths: 5,
+    durationPill: '5-MO',
+    estimatedHours: 160,
+    price: 250,
+    levelPill: 'BEGINNER',
+    level: 'Beginner to Advanced',
+    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+    iconType: 'chart',
+    accentColor: '#F59E0B',
+    iconBg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800',
+    iconColor: 'text-amber-600 dark:text-amber-400',
+    careerRoles: ['Digital Marketing Manager', 'Performance Ads Buyer', 'SEO Strategist', 'Growth Lead'],
+    certifications: ['Lafole Certified Growth Strategist (LCGS)', 'Google Ads & GA4 Alignment'],
+    courseNames: [
+      'Digital Marketing Strategy & Customer Personas',
+      'Search Engine Optimization (SEO) & Content Strategy',
+      'Google Search & Display Advertising',
+      'Meta (Facebook & Instagram) Paid Ads Mastery',
+      'TikTok & Video Ads for Brand Growth',
+      'Google Analytics 4 & Conversion Tracking',
+      'Email Marketing Automation & Lead Nurturing',
+      'Capstone: Live ROI-Driven Ad Campaign & Growth Pitch'
+    ],
+    prerequisites: 'None. Ideal for business owners, creators, and marketing professionals.'
+  }
+];

@@ -1,0 +1,193 @@
+{
+  "entities": {
+    "enrollment": {
+      "title": "Enrollment",
+      "description": "Client enrollment registration details and email verification status",
+      "type": "object",
+      "properties": {
+        "fullName": {
+          "type": "string",
+          "description": "Full name of student"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Phone number with country code"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Student email address"
+        },
+        "whatsappReceipts": {
+          "type": "boolean",
+          "description": "Consent for WhatsApp receipts and updates"
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Enrolled course identifier"
+        },
+        "courseTitle": {
+          "type": "string",
+          "description": "Title of the course"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Course price in USD"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Payment currency, e.g. USD"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending_verification", "verified", "enrolled"],
+          "description": "Current enrollment and verification status"
+        },
+        "verificationToken": {
+          "type": "string",
+          "description": "Unique cryptographic email verification token"
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Whether the client email has been verified"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Cryptographic salted hash of student password"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of registration"
+        }
+      },
+      "required": ["fullName", "email", "courseId"]
+    },
+    "verificationEmail": {
+      "title": "VerificationEmail",
+      "description": "Dispatched verification email record",
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "format": "email",
+          "description": "Recipient email"
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Recipient full name"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of verification email"
+        },
+        "token": {
+          "type": "string",
+          "description": "Verification security token"
+        },
+        "sentAt": {
+          "type": "string",
+          "description": "Timestamp when email was sent"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["sent", "verified", "expired"],
+          "description": "Status of the email"
+        }
+      },
+      "required": ["to", "token"]
+    },
+    "user": {
+      "title": "User",
+      "description": "Registered and verified student user profile and account details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Student unique identifier"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the student"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Student email address"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Student phone number"
+        },
+        "country": {
+          "type": "string",
+          "description": "Country of origin"
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Verification status"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Cryptographic salted hash of student password"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp"
+        }
+      },
+      "required": ["fullName", "email"]
+    },
+    "passwordReset": {
+      "title": "PasswordReset",
+      "description": "Password reset token and verification code record",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Student email"
+        },
+        "code": {
+          "type": "string",
+          "description": "6-digit numeric verification code"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp"
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO expiration timestamp"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "used", "expired"],
+          "description": "Status"
+        }
+      },
+      "required": ["email", "code"]
+    }
+  },
+  "firestore": {
+    "/enrollments/{enrollmentId}": {
+      "schema": "enrollment",
+      "description": "Student enrollments and details created upon checkout"
+    },
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "Student profiles and account credentials"
+    },
+    "/students/{studentId}": {
+      "schema": "user",
+      "description": "Student records mirrored for directory visibility"
+    },
+    "/password_resets/{resetId}": {
+      "schema": "passwordReset",
+      "description": "Student password reset codes and tokens"
+    },
+    "/verification_emails/{emailId}": {
+      "schema": "verificationEmail",
+      "description": "Records of verification emails dispatched to students"
+    }
+  }
+}

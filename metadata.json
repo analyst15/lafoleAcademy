@@ -1,0 +1,6 @@
+{
+  "name": "Lafole Academy LMS",
+  "description": "Practitioner-led diplomas and certifications in cloud, cybersecurity, networking, and AI with video hosting, technical quizzes, and automated progress tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

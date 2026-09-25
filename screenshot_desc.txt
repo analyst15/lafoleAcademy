@@ -1,0 +1,34 @@
+Top Navigation Bar:
+- Left: A green square logo with a lowercase white letter h, followed by the text hurbad in black, a right chevron symbol, the text Hurbad, another right chevron symbol, and the text Checkout.
+- Right: A padlock icon, followed by the text SECURED BY STRIPE, a middle dot separator, and the text 256-BIT TLS.
+
+Main Layout:
+- Divided into two main sections: a left area containing the cart items and user status, and a right area containing the order summary, promo code, totals, payment methods, and completion button.
+
+Left Area:
+- Main Heading: Your cart (1 item)
+- User Status Box: A light green outlined container with a green checkmark icon inside a circle and the text Signed in as techanalyst41@gmail.com.
+- Cart Item Card: A white rounded rectangular container with a subtle shadow containing:
+  - Left side: A thumbnail image showing a preview of a course certificate with text reading IP Enterprise (300-410 ENARSI).
+  - Middle: The label COURSE, followed by the main title CCNP Enterprise (300-410 ENARSI v1.1). Below this are two interactive action links separated by a dot: Save for later (with a bookmark icon) and Remove (with an 'x' icon).
+  - Right side: The current price $80.00, below it the original price with a strikethrough $160.00 USD, and below that a red promotional label Back to School SALES.
+
+Right Area (Order Summary Panel):
+- Section Heading: ORDER SUMMARY
+- Line Item: CCNP Enterprise (300-410 ENARSI v1.1) on the left, and $160.00 on the right.
+- Promo Code Section:
+  - Label: PROMO CODE (with a tag icon)
+  - Input field: A text box containing placeholder text Promo or team code
+  - Button: An Apply button located to the right of the input box.
+- Summary Calculation Lines:
+  - 1 item on the left, $160.00 on the right.
+  - Back to School SALES in red with a checkmark icon on the left, and -$80.00 in red on the right.
+- Total Section:
+  - Label: TOTAL
+  - Amount: $80.00 in large bold font.
+- Payment Method Section:
+  - Section Heading: PAYMENT METHOD
+  - Option 1 (Selected): A green-bordered container featuring a credit card icon inside a green square, the text Master Card, Credit / Debit Card, brand logos (Visa, Mastercard, American Express), and a selected radio button on the far right.
+  - Option 2 (Unselected): A standard outlined container featuring a cash/card icon inside a grey square, the text Evc, Zaad, eBirr, eDahab, & Xawaalad, a subtitle reading Manual - admin confirms your payment, brand logos (EVC Plus, eDahab, eBirr, WAAFIPAY, M-PESA), and an unselected radio button on the far right.
+- Call to Action: A large green button spanning the width of the panel containing a lock icon and the text Complete enrollment.
+- Footer note below the button: A shield checkmark icon followed by the text 256-bit SSL - secure checkout - instant access after payment.
