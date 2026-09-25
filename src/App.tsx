@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   CheckCircle2, 
   ArrowRight, 
@@ -47,6 +47,7 @@ import { ProgressDashboard } from './components/ProgressDashboard';
 import { InstructorStudio } from './components/InstructorStudio';
 import { CertificateModal } from './components/CertificateModal';
 import { DashboardLayout, DashboardTab } from './components/dashboard/DashboardLayout';
+import { getStudentEnrolledCourseIds } from './lib/firebase';
 
 export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard';
 
@@ -200,6 +201,58 @@ export default function App() {
     }
     return '';
   });
+
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lafole_enrolled_course_ids');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {}
+      }
+      // Check last_lafole_enrollment ONLY IF status is explicitly 'enrolled' (not a new account registration)
+      const lastEnroll = localStorage.getItem('last_lafole_enrollment');
+      if (lastEnroll) {
+        try {
+          const parsed = JSON.parse(lastEnroll);
+          if (parsed.status === 'enrolled' && parsed.courseId && parsed.courseId !== 'general-student') {
+            return [parsed.courseId];
+          }
+        } catch {}
+      }
+    }
+    return [];
+  });
+
+  const enrolledCourses = useMemo(() => {
+    return courses.filter(c => enrolledCourseIds.includes(c.id));
+  }, [courses, enrolledCourseIds]);
+
+  // Sync confirmed course enrollments from Firestore for logged-in student
+  useEffect(() => {
+    if (!isEmailVerified || !verifiedEmail) {
+      return;
+    }
+    let isMounted = true;
+    getStudentEnrolledCourseIds(verifiedEmail)
+      .then((ids) => {
+        if (!isMounted) return;
+        setEnrolledCourseIds((prev) => {
+          const merged = Array.from(new Set([...prev, ...ids]));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('lafole_enrolled_course_ids', JSON.stringify(merged));
+          }
+          return merged;
+        });
+      })
+      .catch((err) => {
+        console.warn("Could not sync student enrolled courses from Firestore:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isEmailVerified, verifiedEmail]);
 
   // Unique course page navigation with dedicated URL
   const navigateToCourse = useCallback((course: Course) => {
@@ -551,12 +604,14 @@ export default function App() {
     setIsEmailVerified(false);
     setVerifiedEmail('');
     setVerifiedFullName('');
+    setEnrolledCourseIds([]);
     clearCart();
     setCartItems([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('lafole_email_verified');
       localStorage.removeItem('lafole_verified_email');
       localStorage.removeItem('lafole_verified_fullname');
+      localStorage.removeItem('lafole_enrolled_course_ids');
       localStorage.removeItem('lafole_cart_items');
       localStorage.removeItem('lafole_last_active_time');
       const lastEnroll = localStorage.getItem('last_lafole_enrollment');
@@ -783,6 +838,14 @@ export default function App() {
 
   // Transition to classroom learning view
   const handleEnrollAndLearn = useCallback((course: Course) => {
+    setEnrolledCourseIds((prev) => {
+      if (prev.includes(course.id)) return prev;
+      const updated = [...prev, course.id];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('lafole_enrolled_course_ids', JSON.stringify(updated));
+      }
+      return updated;
+    });
     setActiveCourse(course);
     if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
       setActiveLesson(course.modules[0].lessons[0]);
@@ -1385,12 +1448,27 @@ export default function App() {
             setActiveCourse(c);
             setIsCertificateModalOpen(true);
           }}
-          enrolledCourses={courses.slice(0, 1)}
-          courseProgressMap={{
-            [activeCourse.id]: courseProgress
-          }}
-          userName={verifiedFullName || studentProfile.name || 'Nerd Ninja'}
-          userEmail={verifiedEmail || studentProfile.email || 'techanalyst41@gmail.com'}
+          enrolledCourses={enrolledCourses}
+          courseProgressMap={
+            enrolledCourses.reduce<Record<string, CourseProgress>>((acc, c) => {
+              if (c.id === activeCourse.id && courseProgress.percentComplete > 0) {
+                acc[c.id] = courseProgress;
+              } else {
+                acc[c.id] = {
+                  courseId: c.id,
+                  percentComplete: 0,
+                  completedLessonsCount: 0,
+                  totalLessonsCount: c.modules.flatMap(m => m.lessons).length,
+                  totalTimeSpentSeconds: 0,
+                  lastAccessedAt: new Date().toISOString(),
+                  isCertificateUnlocked: false
+                };
+              }
+              return acc;
+            }, {})
+          }
+          userName={verifiedFullName || (verifiedEmail ? verifiedEmail.split('@')[0] : '')}
+          userEmail={verifiedEmail || 'student@lafole.so'}
           isDarkMode={isDarkMode}
           onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           onSignOut={handleSignOut}

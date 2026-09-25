@@ -254,9 +254,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-[18px] sm:text-[20px] font-[600] text-slate-900 dark:text-white">
-                  Continue Learning ({enrolledCourses.length})
+                  {enrolledCourses.some(c => (courseProgressMap[c.id]?.percentComplete || 0) > 0) ? 'Continue Learning' : 'Enrolled Courses'} ({enrolledCourses.length})
                 </h2>
-                <p className="text-[14px] font-[400] text-slate-500 mt-0.5">Pick up right where you left off</p>
+                <p className="text-[14px] font-[400] text-slate-500 mt-0.5">
+                  {enrolledCourses.some(c => (courseProgressMap[c.id]?.percentComplete || 0) > 0) ? 'Pick up right where you left off' : 'Start your enrolled learning tracks'}
+                </p>
               </div>
               <button
                 onClick={() => onNavigateToTab('mylearning')}
@@ -319,7 +321,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       className="w-full py-2.5 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-[14px] font-[500] transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Resume Lesson</span>
+                      <span>{(prog.percentComplete || 0) > 0 ? 'Resume Lesson' : 'Start Course'}</span>
                     </button>
                   </div>
                 );

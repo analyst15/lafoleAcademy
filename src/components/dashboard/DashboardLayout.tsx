@@ -114,7 +114,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     setMobileMenuOpen(false);
   };
 
-  const displayName = userName || 'Nerd Ninja';
+  const displayName = userName || (userEmail ? userEmail.split('@')[0] : 'Student');
   const nameParts = displayName.split(' ');
   const initials = `${nameParts[0] ? nameParts[0][0] : 'N'}${nameParts[1] ? nameParts[1][0] : 'N'}`.toUpperCase();
 

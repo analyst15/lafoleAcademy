@@ -1091,3 +1091,56 @@ export async function resetStudentPassword(
   return requestPasswordResetCode(email);
 }
 
+/**
+ * Retrieves the list of actively enrolled course IDs for a given student email from Firestore.
+ * Brand new students who only registered an account will return [] (empty array).
+ */
+export async function getStudentEnrolledCourseIds(email: string): Promise<string[]> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return [];
+
+  const enrolledIds = new Set<string>();
+
+  // 1. Query 'enrollments' collection where email matches and status is 'enrolled' or payment completed
+  try {
+    const q = query(
+      collection(db, 'enrollments'),
+      where('email', '==', cleanEmail)
+    );
+    const snap = await getDocs(q);
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (
+        (data.status === 'enrolled' || data.paymentStatus === 'completed') &&
+        data.courseId &&
+        data.courseId !== 'general-student'
+      ) {
+        enrolledIds.add(data.courseId);
+      }
+    });
+  } catch (err) {
+    console.warn("Could not query enrollments for student:", err);
+  }
+
+  // 2. Query user/student record for confirmed enrolled courses
+  try {
+    const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+    const uSnap = await getDoc(doc(db, 'users', userDocId));
+    if (uSnap.exists()) {
+      const data = uSnap.data();
+      if (Array.isArray(data.enrolledCourseIds)) {
+        data.enrolledCourseIds.forEach((id: string) => {
+          if (id && id !== 'general-student') enrolledIds.add(id);
+        });
+      }
+      if (data.status === 'enrolled' && data.lastEnrolledCourseId && data.lastEnrolledCourseId !== 'general-student') {
+        enrolledIds.add(data.lastEnrolledCourseId);
+      }
+    }
+  } catch (err) {
+    console.warn("Could not query user doc for enrollments:", err);
+  }
+
+  return Array.from(enrolledIds);
+}
+

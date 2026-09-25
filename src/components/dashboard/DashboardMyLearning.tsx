@@ -175,7 +175,7 @@ export const DashboardMyLearning: React.FC<DashboardMyLearningProps> = ({
                       className="flex-1 py-2.5 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-[14px] font-[500] transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>{isDone ? 'Review' : 'Resume'}</span>
+                      <span>{isDone ? 'Review' : ((prog.percentComplete || 0) > 0 ? 'Resume' : 'Start Course')}</span>
                     </button>
                     
                     {isDone ? (
