@@ -27,9 +27,14 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
   const [manualEmailInput, setManualEmailInput] = useState<string>('techanalyst41@gmail.com');
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token') || params.get('oobCode') || '';
-    const email = params.get('email') || '';
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashQuery = typeof window !== 'undefined' && window.location.hash.includes('?') 
+      ? window.location.hash.substring(window.location.hash.indexOf('?')) 
+      : '';
+    const hashParams = new URLSearchParams(hashQuery);
+
+    const token = searchParams.get('token') || searchParams.get('oobCode') || hashParams.get('token') || hashParams.get('oobCode') || '';
+    const email = searchParams.get('email') || hashParams.get('email') || '';
     setVerifiedEmail(email);
 
     if (!token) {

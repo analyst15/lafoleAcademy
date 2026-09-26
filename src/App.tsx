@@ -51,57 +51,102 @@ import { getStudentEnrolledCourseIds } from './lib/firebase';
 
 export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard';
 
+export function parseRouteFromLocation(): {
+  view: AppView;
+  dashboardTab: DashboardTab;
+  isCheckout: boolean;
+  courseParamId?: string;
+} {
+  if (typeof window === 'undefined') {
+    return { view: 'home', dashboardTab: 'dashboard', isCheckout: false };
+  }
+  const rawPath = window.location.pathname.toLowerCase();
+  const path = rawPath.length > 1 ? rawPath.replace(/\/+$/, '') : rawPath;
+
+  // Support hash routing fallback (e.g. /#/catalog, /#/verify-email?token=..., #catalog)
+  const hashRaw = window.location.hash.toLowerCase().replace(/^#\/?/, '').split('?')[0];
+  const hashRoute = hashRaw ? (hashRaw.startsWith('/') ? hashRaw : '/' + hashRaw).replace(/\/+$/, '') : '';
+
+  const effectiveRoute = (path !== '/' ? path : hashRoute) || '/';
+
+  // Read query params from both search and hash
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashQuery = window.location.hash.includes('?') 
+    ? window.location.hash.substring(window.location.hash.indexOf('?')) 
+    : '';
+  const hashParams = new URLSearchParams(hashQuery);
+  const isCheckout = searchParams.get('checkout') === '1' || hashParams.get('checkout') === '1' || effectiveRoute.startsWith('/checkout');
+
+  let dashboardTab: DashboardTab = 'dashboard';
+  if (effectiveRoute === '/dashboard/mylearning') dashboardTab = 'mylearning';
+  else if (effectiveRoute === '/dashboard/learning-path') dashboardTab = 'learning-path';
+  else if (effectiveRoute === '/dashboard/certificates') dashboardTab = 'certificates';
+  else if (effectiveRoute === '/dashboard/books') dashboardTab = 'books';
+  else if (effectiveRoute === '/dashboard/orders') dashboardTab = 'orders';
+  else if (effectiveRoute === '/dashboard/cyber-labs') dashboardTab = 'cyber-labs';
+  else if (effectiveRoute === '/dashboard/networking-labs') dashboardTab = 'networking-labs';
+  else if (effectiveRoute === '/dashboard/payments') dashboardTab = 'payments';
+  else if (effectiveRoute === '/dashboard/downloads') dashboardTab = 'downloads';
+  else if (effectiveRoute === '/dashboard/settings') dashboardTab = 'settings';
+  else if (effectiveRoute === '/dashboard/help') dashboardTab = 'help';
+
+  let view: AppView = 'home';
+  let courseParamId: string | undefined = undefined;
+
+  if (effectiveRoute === '/dashboard' || effectiveRoute.startsWith('/dashboard')) {
+    view = 'dashboard';
+  } else if (effectiveRoute === '/cart' || effectiveRoute.startsWith('/cart') || effectiveRoute.startsWith('/checkout')) {
+    view = 'cart';
+    if (effectiveRoute.startsWith('/checkout/')) {
+      courseParamId = effectiveRoute.replace('/checkout/', '').trim();
+    }
+  } else if (effectiveRoute === '/catalog' || effectiveRoute.startsWith('/catalog')) {
+    view = 'catalog';
+  } else if (effectiveRoute === '/diplomas' || effectiveRoute.startsWith('/diplomas')) {
+    view = 'diplomas';
+  } else if (effectiveRoute === '/books' || effectiveRoute.startsWith('/books')) {
+    view = 'books';
+  } else if (effectiveRoute === '/login' || effectiveRoute.startsWith('/login')) {
+    view = 'login';
+  } else if (effectiveRoute.startsWith('/learn')) {
+    view = 'learn';
+  } else if (effectiveRoute.startsWith('/course/')) {
+    view = 'course-details';
+    courseParamId = effectiveRoute.replace('/course/', '').trim();
+  } else if (effectiveRoute === '/verify-email' || effectiveRoute.startsWith('/verify-email') || effectiveRoute.startsWith('/verify')) {
+    view = 'verify-email';
+  }
+
+  return { view, dashboardTab, isCheckout, courseParamId };
+}
+
 export default function App() {
   const [courses, setCourses] = useState<Course[]>(() => getAll93Courses());
-  const [activeCourse, setActiveCourse] = useState<Course>(INITIAL_COURSES[0]);
-  const [activeLesson, setActiveLesson] = useState<Lesson>(
-    INITIAL_COURSES[0].modules[0].lessons[0]
-  );
+  const initialRoute = useMemo(() => parseRouteFromLocation(), []);
+
+  const [activeCourse, setActiveCourse] = useState<Course>(() => {
+    if (initialRoute.courseParamId) {
+      const all = getAll93Courses();
+      const match = all.find(c => c.id === initialRoute.courseParamId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === initialRoute.courseParamId);
+      if (match) return match;
+    }
+    return INITIAL_COURSES[0];
+  });
+
+  const [activeLesson, setActiveLesson] = useState<Lesson>(() => {
+    if (activeCourse.modules && activeCourse.modules.length > 0 && activeCourse.modules[0].lessons.length > 0) {
+      return activeCourse.modules[0].lessons[0];
+    }
+    return INITIAL_COURSES[0].modules[0].lessons[0];
+  });
   
   // Dashboard Sub-route Tab state
-  const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => {
-    if (typeof window !== 'undefined') {
-      const p = window.location.pathname;
-      if (p === '/dashboard/mylearning') return 'mylearning';
-      if (p === '/dashboard/learning-path') return 'learning-path';
-      if (p === '/dashboard/certificates') return 'certificates';
-      if (p === '/dashboard/books') return 'books';
-      if (p === '/dashboard/orders') return 'orders';
-      if (p === '/dashboard/cyber-labs') return 'cyber-labs';
-      if (p === '/dashboard/networking-labs') return 'networking-labs';
-      if (p === '/dashboard/payments') return 'payments';
-      if (p === '/dashboard/downloads') return 'downloads';
-      if (p === '/dashboard/settings') return 'settings';
-      if (p === '/dashboard/help') return 'help';
-    }
-    return 'dashboard';
-  });
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => initialRoute.dashboardTab);
 
   // Active view: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard'
-  const [activeView, setActiveView] = useState<AppView>(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      if (path === '/dashboard' || path.startsWith('/dashboard')) return 'dashboard';
-      if (path === '/cart' || path.startsWith('/cart')) return 'cart';
-      if (path === '/catalog') return 'catalog';
-      if (path === '/diplomas') return 'diplomas';
-      if (path === '/books') return 'books';
-      if (path === '/login' || path.startsWith('/login')) return 'login';
-      if (path.startsWith('/learn')) return 'learn';
-      if (path.startsWith('/course/')) return 'course-details';
-      if (path.startsWith('/checkout')) return 'cart';
-      if (path.startsWith('/verify-email')) return 'verify-email';
-    }
-    return 'home';
-  });
+  const [activeView, setActiveView] = useState<AppView>(() => initialRoute.view);
 
-  const [isCheckoutMode, setIsCheckoutMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const searchParams = new URLSearchParams(window.location.search);
-      return searchParams.get('checkout') === '1' || window.location.pathname.startsWith('/checkout');
-    }
-    return false;
-  });
+  const [isCheckoutMode, setIsCheckoutMode] = useState<boolean>(() => initialRoute.isCheckout);
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -357,124 +402,34 @@ export default function App() {
     }
   }, [activeCourse, navigateToCart, navigateToDashboard]);
 
-  // Handle direct URL loading & browser forward/backward navigation
+  // Handle direct URL loading, hash changes, and browser forward/backward navigation
   useEffect(() => {
-    const handlePopState = () => {
-      if (typeof window !== 'undefined') {
-        const path = window.location.pathname;
-        if (path === '/dashboard' || path.startsWith('/dashboard')) {
-          setActiveView('dashboard');
-          if (path === '/dashboard/mylearning') setDashboardTab('mylearning');
-          else if (path === '/dashboard/learning-path') setDashboardTab('learning-path');
-          else if (path === '/dashboard/certificates') setDashboardTab('certificates');
-          else if (path === '/dashboard/books') setDashboardTab('books');
-          else if (path === '/dashboard/orders') setDashboardTab('orders');
-          else if (path === '/dashboard/cyber-labs') setDashboardTab('cyber-labs');
-          else if (path === '/dashboard/networking-labs') setDashboardTab('networking-labs');
-          else if (path === '/dashboard/payments') setDashboardTab('payments');
-          else if (path === '/dashboard/downloads') setDashboardTab('downloads');
-          else if (path === '/dashboard/settings') setDashboardTab('settings');
-          else if (path === '/dashboard/help') setDashboardTab('help');
-          else setDashboardTab('dashboard');
-        } else if (path === '/cart' || path.startsWith('/cart')) {
-          const searchParams = new URLSearchParams(window.location.search);
-          const isChk = searchParams.get('checkout') === '1';
-          setIsCheckoutMode(isChk);
-          setActiveView('cart');
-        } else if (path === '/catalog') {
-          setActiveView('catalog');
-        } else if (path === '/diplomas') {
-          setActiveView('diplomas');
-        } else if (path === '/books') {
-          setActiveView('books');
-        } else if (path === '/login' || path.startsWith('/login')) {
-          setActiveView('login');
-        } else if (path.startsWith('/learn')) {
-          setActiveView('learn');
-        } else if (path.startsWith('/course/')) {
-          const courseId = path.replace('/course/', '').trim();
-          const found = courses.find(c => c.id === courseId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === courseId);
-          if (found) {
-            setActiveCourse(found);
-            if (found.modules && found.modules[0]?.lessons[0]) {
-              setActiveLesson(found.modules[0].lessons[0]);
-            }
-          }
-          setActiveView('course-details');
-        } else if (path.startsWith('/checkout')) {
-          setIsCheckoutMode(true);
-          const courseId = path.replace('/checkout/', '').replace('/checkout', '').trim();
-          if (courseId) {
-            const found = courses.find(c => c.id === courseId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === courseId);
-            if (found) {
-              setActiveCourse(found);
-              if (found.modules && found.modules[0]?.lessons[0]) {
-                setActiveLesson(found.modules[0].lessons[0]);
-              }
-            }
-          }
-          setActiveView('cart');
-        } else if (path.startsWith('/verify-email')) {
-          setActiveView('verify-email');
-        } else {
-          setActiveView('home');
-        }
-      }
-    };
+    const handleRouteSync = () => {
+      const current = parseRouteFromLocation();
+      setActiveView(current.view);
+      setDashboardTab(current.dashboardTab);
+      setIsCheckoutMode(current.isCheckout);
 
-    // Run once on initial load for deep links like /dashboard, /cart, /course/:id or /checkout/:id
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      if (path === '/dashboard' || path.startsWith('/dashboard')) {
-        setActiveView('dashboard');
-        if (path === '/dashboard/mylearning') setDashboardTab('mylearning');
-        else if (path === '/dashboard/learning-path') setDashboardTab('learning-path');
-        else if (path === '/dashboard/certificates') setDashboardTab('certificates');
-        else if (path === '/dashboard/books') setDashboardTab('books');
-        else if (path === '/dashboard/orders') setDashboardTab('orders');
-        else if (path === '/dashboard/cyber-labs') setDashboardTab('cyber-labs');
-        else if (path === '/dashboard/networking-labs') setDashboardTab('networking-labs');
-        else if (path === '/dashboard/payments') setDashboardTab('payments');
-        else if (path === '/dashboard/downloads') setDashboardTab('downloads');
-        else if (path === '/dashboard/settings') setDashboardTab('settings');
-        else if (path === '/dashboard/help') setDashboardTab('help');
-        else setDashboardTab('dashboard');
-      } else if (path === '/cart' || path.startsWith('/cart')) {
-        const searchParams = new URLSearchParams(window.location.search);
-        const isChk = searchParams.get('checkout') === '1';
-        setIsCheckoutMode(isChk);
-        setActiveView('cart');
-      } else if (path === '/login' || path.startsWith('/login')) {
-        setActiveView('login');
-      } else if (path.startsWith('/course/')) {
-        const courseId = path.replace('/course/', '').trim();
-        const found = courses.find(c => c.id === courseId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === courseId);
+      if (current.courseParamId) {
+        const found = courses.find(c => 
+          c.id === current.courseParamId || 
+          c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === current.courseParamId
+        );
         if (found) {
           setActiveCourse(found);
           if (found.modules && found.modules[0]?.lessons[0]) {
             setActiveLesson(found.modules[0].lessons[0]);
           }
         }
-      } else if (path.startsWith('/checkout')) {
-        setIsCheckoutMode(true);
-        const courseId = path.replace('/checkout/', '').replace('/checkout', '').trim();
-        if (courseId) {
-          const found = courses.find(c => c.id === courseId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === courseId);
-          if (found) {
-            setActiveCourse(found);
-            if (found.modules && found.modules[0]?.lessons[0]) {
-              setActiveLesson(found.modules[0].lessons[0]);
-            }
-          }
-        }
-        setActiveView('cart');
-      } else if (path.startsWith('/verify-email')) {
-        setActiveView('verify-email');
       }
-    }
+    };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', handleRouteSync);
+    window.addEventListener('hashchange', handleRouteSync);
+    return () => {
+      window.removeEventListener('popstate', handleRouteSync);
+      window.removeEventListener('hashchange', handleRouteSync);
+    };
   }, [courses]);
 
   // Sync dark mode class with root and localStorage
