@@ -133,8 +133,10 @@ export async function saveClientDetailsAndInitiateVerification(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://lafole.so';
-  const verificationUrl = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(details.email)}`;
+  const baseUrl = typeof window !== 'undefined' 
+    ? window.location.origin.replace(/\/+$/, '') 
+    : 'https://lafole.so';
+  const verificationUrl = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(details.email?.trim() || '')}`;
 
   // Securely hash password if provided
   let computedHash = details.passwordHash;

@@ -49,6 +49,9 @@ export default async function handler(req: any, res: any) {
     }
 
     const resendApiKey = process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.trim() : "";
+    const hashFallbackUrl = verificationUrl && !verificationUrl.includes('#') 
+      ? verificationUrl.replace('/verify-email', '/#/verify-email') 
+      : (verificationUrl || "");
 
     if (resendApiKey) {
       try {
@@ -64,7 +67,7 @@ export default async function handler(req: any, res: any) {
             reply_to: "admissions@lafole.net",
             to: [recipient],
             subject: `Verify your email for Lafole Academy - ${courseTitle || "Welcome"}`,
-            text: `Hello ${fullName || "Student"},\n\nThank you for beginning your enrollment in ${courseTitle || "your course"} at Lafole Academy. Please click the link below to verify your email address:\n${verificationUrl}\n\nThis link is valid for 24 hours.\n\nWarm regards,\nLafole Academy Registrar`,
+            text: `Hello ${fullName || "Student"},\n\nThank you for beginning your enrollment in ${courseTitle || "your course"} at Lafole Academy. Please click the link below to verify your email address:\n${verificationUrl}\n\nAlternative direct link:\n${hashFallbackUrl}\n\nThis link is valid for 24 hours.\n\nWarm regards,\nLafole Academy Registrar`,
             html: `
               <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
                 <h2 style="color: #0f172a; margin-top: 0; margin-bottom: 12px; font-size: 20px;">Verify your email for Lafole Academy</h2>
@@ -74,6 +77,7 @@ export default async function handler(req: any, res: any) {
                   <a href="${verificationUrl}" style="background-color: #22c55e; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px; display: inline-block;">Verify My Email Address</a>
                 </div>
                 <p style="color: #64748b; font-size: 13px; line-height: 1.5;">If the button does not work, copy and paste this URL into your browser:<br/><a href="${verificationUrl}" style="color: #16a34a; word-break: break-all;">${verificationUrl}</a></p>
+                <p style="color: #94a3b8; font-size: 12px; line-height: 1.4; margin-top: 8px;">Alternative direct link:<br/><a href="${hashFallbackUrl}" style="color: #16a34a; word-break: break-all;">${hashFallbackUrl}</a></p>
                 <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
                 <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">This link is valid for 24 hours. If you did not create this account, you can safely ignore this email.</p>
               </div>
