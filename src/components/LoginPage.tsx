@@ -128,6 +128,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           message: res.message
         });
         showToast("Verification link dispatched! Please check your inbox or spam folder.", "success");
+      } else if ((res as any).alreadyExists) {
+        if ((res as any).isVerified) {
+          setAuthMode('signin');
+          setIdentifier(cleanEmail);
+          setErrorMessage("An account with this email address already exists and is verified. Please sign in with your password below.");
+          showToast("Account already verified. Please sign in.", "info");
+        } else {
+          setErrorMessage(res.message || "An account with this email is pending verification. Please check your inbox or sign in.");
+          showToast("Account pending verification.", "info");
+        }
       } else {
         setErrorMessage(res.message || "Failed to create account. Please try again.");
       }
@@ -1058,6 +1068,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     placeholder="••••••••"
                     className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2EB641] dark:text-white placeholder:text-slate-400"
                   />
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-slate-500">Didn't receive code?</span>
+                  <button
+                    type="button"
+                    disabled={isSendingReset}
+                    onClick={handleSendResetPassword}
+                    className="text-[#2EB641] hover:underline font-semibold disabled:opacity-50 cursor-pointer"
+                  >
+                    Resend 6-digit code
+                  </button>
                 </div>
 
                 <div className="flex items-center space-x-2.5 pt-2">

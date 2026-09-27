@@ -21,6 +21,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Course, CourseProgress, StudentProfile } from '../../types';
+import { formatStudentDisplayName, getEmailInitials } from '../../utils/userUtils';
 import { DashboardHome } from './DashboardHome';
 import { DashboardMyLearning } from './DashboardMyLearning';
 import { DashboardDiplomas } from './DashboardDiplomas';
@@ -114,9 +115,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     setMobileMenuOpen(false);
   };
 
-  const displayName = userName || (userEmail ? userEmail.split('@')[0] : 'Student');
-  const nameParts = displayName.split(' ');
-  const initials = `${nameParts[0] ? nameParts[0][0] : 'N'}${nameParts[1] ? nameParts[1][0] : 'N'}`.toUpperCase();
+  const displayName = formatStudentDisplayName(userName, userEmail);
+  const initials = getEmailInitials(userEmail, displayName);
 
   return (
     <div className="min-h-[calc(100vh-68px)] bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row text-slate-800 dark:text-slate-200 transition-colors duration-200 font-geist">
@@ -347,6 +347,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
           {currentTab === 'orders' && (
             <DashboardOrders
+              userEmail={userEmail}
               onExploreCourses={onExploreCourses}
               onViewReceipt={(order) => {
                 handleNavClick('payments');

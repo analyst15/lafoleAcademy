@@ -13,6 +13,7 @@ import {
   Clock 
 } from 'lucide-react';
 import { Course, CourseProgress, StudentProfile } from '../../types';
+import { formatStudentDisplayName } from '../../utils/userUtils';
 
 interface DashboardHomeProps {
   userName: string;
@@ -125,7 +126,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* Greeting Title */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-[600] text-slate-900 dark:text-white tracking-tight">
-          {getGreeting()}, <span className="text-[#22C55E]">{userName || 'Nerd Ninja'}</span>
+          {getGreeting()}, <span className="text-[#22C55E]">{formatStudentDisplayName(userName)}</span>
         </h1>
         <p className="text-[14.5px] font-[400] text-slate-500 dark:text-slate-400 mt-1">
           Welcome back to your personalized learning dashboard.

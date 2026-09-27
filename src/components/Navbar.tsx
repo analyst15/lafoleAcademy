@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Course, CourseProgress, StudentProfile, CartItem } from '../types';
 import { PromoAlertBar } from './PromoAlertBar';
-import { getEmailInitials } from '../utils/userUtils';
+import { getEmailInitials, formatStudentDisplayName } from '../utils/userUtils';
 import { CartDropdown } from './CartDropdown';
 
 interface NavbarProps {
@@ -91,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Compute initials from verified email or full name
   const effectiveEmail = verifiedUserEmail || studentProfile.email;
-  const effectiveName = verifiedUserName || studentProfile.name;
+  const effectiveName = formatStudentDisplayName(verifiedUserName || (isEmailVerified ? '' : studentProfile.name), effectiveEmail);
   const initials = getEmailInitials(effectiveEmail, effectiveName);
 
   // Close dropdowns when clicking outside
@@ -524,7 +524,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                            {effectiveName || 'Verified Student'}
+                            {effectiveName}
                           </div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                             {effectiveEmail}

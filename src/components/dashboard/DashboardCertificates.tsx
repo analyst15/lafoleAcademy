@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Award, ArrowRight, ShieldCheck, Download, ExternalLink, Check, Copy } from 'lucide-react';
 import { Course, CourseProgress } from '../../types';
+import { formatStudentDisplayName } from '../../utils/userUtils';
 
 interface DashboardCertificatesProps {
   enrolledCourses: Course[];
@@ -75,7 +76,7 @@ export const DashboardCertificates: React.FC<DashboardCertificatesProps> = ({
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-[13.5px] text-slate-600 dark:text-slate-300 font-[400]">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">Recipient:</span>
-                      <span className="font-[500] text-slate-800 dark:text-slate-200">{userName || 'Nerd Ninja'}</span>
+                      <span className="font-[500] text-slate-800 dark:text-slate-200">{formatStudentDisplayName(userName)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">Credential ID:</span>

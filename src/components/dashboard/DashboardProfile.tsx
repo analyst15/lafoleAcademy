@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Camera, 
@@ -14,11 +14,15 @@ import {
   ShieldCheck, 
   Sparkles 
 } from 'lucide-react';
-import { updateStudentPassword } from '../../lib/firebase';
+import { updateStudentPassword, updateStudentProfile } from '../../lib/firebase';
+import { formatStudentDisplayName, getEmailInitials } from '../../utils/userUtils';
 
 interface DashboardProfileProps {
   userEmail: string;
   userName: string;
+  userPhone?: string;
+  userCountry?: string;
+  userUsername?: string;
   onUpdateName?: (name: string) => void;
   showToast?: (msg: string, type?: 'info' | 'success' | 'error') => void;
 }
@@ -26,16 +30,46 @@ interface DashboardProfileProps {
 export const DashboardProfile: React.FC<DashboardProfileProps> = ({
   userEmail,
   userName,
+  userPhone,
+  userCountry,
+  userUsername,
   onUpdateName,
   showToast
 }) => {
-  // Prepopulate with user details matching Profile.png reference screenshot
-  const [firstName, setFirstName] = useState(userName ? userName.split(' ')[0] : 'Nerd');
-  const [lastName, setLastName] = useState(userName && userName.split(' ').length > 1 ? userName.split(' ').slice(1).join(' ') : 'Ninja');
-  const [email, setEmail] = useState(userEmail || 'techanalyst41@gmail.com');
-  const [username, setUsername] = useState('nninja342');
-  const [phone, setPhone] = useState('+254707440550');
-  const [country, setCountry] = useState('Somalia');
+  // Compute authentic display name and split into first/last
+  const cleanInitialName = formatStudentDisplayName(userName, userEmail);
+  const initialParts = cleanInitialName.trim().split(/\s+/).filter(Boolean);
+  const initialFirst = initialParts[0] && initialParts[0] !== 'Student' ? initialParts[0] : '';
+  const initialLast = initialParts.slice(1).join(' ');
+
+  const [firstName, setFirstName] = useState(initialFirst);
+  const [lastName, setLastName] = useState(initialLast);
+  const [email, setEmail] = useState(userEmail || '');
+  const [username, setUsername] = useState(userUsername || (userEmail ? userEmail.split('@')[0] : ''));
+  const [phone, setPhone] = useState(userPhone || '');
+  const [country, setCountry] = useState(userCountry || 'Somalia');
+
+  // Synchronize when parent props update (e.g. after Firestore profile retrieval)
+  useEffect(() => {
+    const cleanName = formatStudentDisplayName(userName, userEmail);
+    const parts = cleanName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      setFirstName(parts[0]);
+      setLastName(parts.slice(1).join(' '));
+    } else if (parts.length === 1 && parts[0] !== 'Student') {
+      setFirstName(parts[0]);
+      setLastName('');
+    }
+    if (userEmail) {
+      setEmail(userEmail);
+      if (!username || username === 'nninja342') {
+        setUsername(userEmail.split('@')[0]);
+      }
+    }
+    if (userPhone) setPhone(userPhone);
+    if (userCountry) setCountry(userCountry);
+    if (userUsername) setUsername(userUsername);
+  }, [userName, userEmail, userPhone, userCountry, userUsername]);
 
   // Notification toggles matching Profile_2.png
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -51,11 +85,23 @@ export const DashboardProfile: React.FC<DashboardProfileProps> = ({
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; error: boolean } | null>(null);
 
-  const handleSavePersonalInfo = (e: React.FormEvent) => {
+  const handleSavePersonalInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
     if (onUpdateName && fullName) {
       onUpdateName(fullName);
+    }
+    if (userEmail) {
+      try {
+        await updateStudentProfile(userEmail, {
+          fullName,
+          phoneNumber: phone,
+          country,
+          username
+        });
+      } catch (err) {
+        console.warn("Could not save profile to Firestore:", err);
+      }
     }
     if (showToast) {
       showToast('Personal information updated successfully.', 'success');
@@ -114,7 +160,8 @@ export const DashboardProfile: React.FC<DashboardProfileProps> = ({
     }
   };
 
-  const initials = `${firstName ? firstName[0] : 'N'}${lastName ? lastName[0] : 'N'}`.toUpperCase();
+  const currentDisplayName = formatStudentDisplayName(`${firstName} ${lastName}`.trim(), email);
+  const initials = getEmailInitials(email, currentDisplayName);
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fadeIn max-w-4xl">
@@ -151,7 +198,7 @@ export const DashboardProfile: React.FC<DashboardProfileProps> = ({
             </div>
             <div className="pb-1">
               <h2 className="text-[18px] sm:text-[20px] font-[600] text-slate-900 dark:text-white">
-                {firstName} {lastName}
+                {currentDisplayName}
               </h2>
               <div className="flex items-center space-x-2 mt-1">
                 <span className="px-2 py-0.5 rounded bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-[10px] font-[700] uppercase tracking-wider">

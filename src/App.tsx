@@ -47,7 +47,8 @@ import { ProgressDashboard } from './components/ProgressDashboard';
 import { InstructorStudio } from './components/InstructorStudio';
 import { CertificateModal } from './components/CertificateModal';
 import { DashboardLayout, DashboardTab } from './components/dashboard/DashboardLayout';
-import { getStudentEnrolledCourseIds } from './lib/firebase';
+import { getStudentEnrolledCourseIds, getStudentProfile, updateStudentProfile } from './lib/firebase';
+import { formatStudentDisplayName } from './utils/userUtils';
 
 export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard';
 
@@ -235,12 +236,12 @@ export default function App() {
   const [verifiedFullName, setVerifiedFullName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const name = localStorage.getItem('lafole_verified_fullname');
-      if (name) return name;
+      if (name && !['verified student', 'nerd ninja'].includes(name.toLowerCase())) return name;
       const lastEnroll = localStorage.getItem('last_lafole_enrollment');
       if (lastEnroll) {
         try {
           const parsed = JSON.parse(lastEnroll);
-          if (parsed.fullName) return parsed.fullName;
+          if (parsed.fullName && !['verified student', 'nerd ninja'].includes(parsed.fullName.toLowerCase())) return parsed.fullName;
         } catch {}
       }
     }
@@ -274,12 +275,29 @@ export default function App() {
     return courses.filter(c => enrolledCourseIds.includes(c.id));
   }, [courses, enrolledCourseIds]);
 
-  // Sync confirmed course enrollments from Firestore for logged-in student
+  // Sync confirmed course enrollments & authentic student profile from Firestore for logged-in student
   useEffect(() => {
     if (!isEmailVerified || !verifiedEmail) {
       return;
     }
     let isMounted = true;
+    
+    // 1. Sync student profile (real name, phone, etc.)
+    getStudentProfile(verifiedEmail)
+      .then((profile) => {
+        if (!isMounted || !profile) return;
+        if (profile.fullName && !['verified student', 'nerd ninja'].includes(profile.fullName.toLowerCase())) {
+          setVerifiedFullName(profile.fullName);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('lafole_verified_fullname', profile.fullName);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not sync student profile from Firestore:", err);
+      });
+
+    // 2. Sync enrolled course IDs
     getStudentEnrolledCourseIds(verifiedEmail)
       .then((ids) => {
         if (!isMounted) return;
@@ -487,20 +505,21 @@ export default function App() {
   // Email verification success handler (activates post-verification navbar with initials & adds course to cart)
   const handleEmailVerificationSuccess = useCallback((email: string, fullName?: string, verifiedCourseId?: string) => {
     setIsEmailVerified(true);
+    const cleanDisplayName = formatStudentDisplayName(fullName, email);
     if (email) setVerifiedEmail(email);
-    if (fullName) setVerifiedFullName(fullName);
+    if (cleanDisplayName) setVerifiedFullName(cleanDisplayName);
     if (typeof window !== 'undefined') {
       localStorage.setItem('lafole_email_verified', 'true');
       localStorage.setItem('lafole_last_active_time', String(Date.now()));
       if (email) localStorage.setItem('lafole_verified_email', email);
-      if (fullName) localStorage.setItem('lafole_verified_fullname', fullName);
+      if (cleanDisplayName) localStorage.setItem('lafole_verified_fullname', cleanDisplayName);
       const lastEnroll = localStorage.getItem('last_lafole_enrollment');
       if (lastEnroll) {
         try {
           const parsed = JSON.parse(lastEnroll);
           parsed.emailVerified = true;
           if (email) parsed.email = email;
-          if (fullName) parsed.fullName = fullName;
+          if (cleanDisplayName) parsed.fullName = cleanDisplayName;
           localStorage.setItem('last_lafole_enrollment', JSON.stringify(parsed));
         } catch {}
       }
@@ -1129,8 +1148,8 @@ export default function App() {
         <div className="flex-1 flex flex-col">
           <LoginPage
             onSuccessSignIn={(user) => {
-              handleEmailVerificationSuccess(user?.email || 'techanalyst41@gmail.com', user?.name);
-              showToast(`Welcome back, ${user?.name || 'Student'}!`, 'info');
+              handleEmailVerificationSuccess(user?.email || '', user?.name);
+              showToast(`Welcome back, ${formatStudentDisplayName(user?.name, user?.email)}!`, 'info');
               navigateToDashboard('dashboard');
             }}
             onBackToHome={() => navigateTo('home')}
@@ -1422,14 +1441,20 @@ export default function App() {
               return acc;
             }, {})
           }
-          userName={verifiedFullName || (verifiedEmail ? verifiedEmail.split('@')[0] : '')}
-          userEmail={verifiedEmail || 'student@lafole.so'}
+          userName={formatStudentDisplayName(verifiedFullName, verifiedEmail)}
+          userEmail={verifiedEmail || ''}
           isDarkMode={isDarkMode}
           onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           onSignOut={handleSignOut}
           onUpdateName={(name) => {
-            setVerifiedFullName(name);
-            localStorage.setItem('lafole_verified_fullname', name);
+            const cleanName = formatStudentDisplayName(name, verifiedEmail);
+            setVerifiedFullName(cleanName);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('lafole_verified_fullname', cleanName);
+            }
+            if (verifiedEmail) {
+              updateStudentProfile(verifiedEmail, { fullName: cleanName }).catch(() => {});
+            }
           }}
           showToast={(text, type) => showToast(text, type === 'error' ? 'info' : 'success')}
         />

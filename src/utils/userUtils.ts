@@ -11,6 +11,52 @@ export interface VerifiedUserSession {
 }
 
 /**
+ * Formats a clean student full name from an email prefix or raw identifier.
+ * Examples:
+ * - "techanalyst41@gmail.com" -> "Tech Analyst"
+ * - "john.doe@example.com" -> "John Doe"
+ * - "abdi_hassan@gmail.com" -> "Abdi Hassan"
+ */
+export function formatNameFromEmail(emailOrPrefix?: string): string {
+  if (!emailOrPrefix || !emailOrPrefix.trim()) return 'Student';
+  const prefix = emailOrPrefix.includes('@') ? emailOrPrefix.split('@')[0] : emailOrPrefix;
+  const cleaned = prefix.trim().replace(/\d+$/, ''); // remove trailing numbers
+  const words = cleaned.split(/[._+-]+/).filter(Boolean);
+  
+  if (words.length > 0) {
+    if (words.length === 1) {
+      const compound = words[0].match(/^(tech|data|cyber|cloud|web|full|sys|net|info|soft|dev|code)(.*)$/i);
+      if (compound && compound[2]) {
+        return (
+          compound[1].charAt(0).toUpperCase() + compound[1].slice(1).toLowerCase() + ' ' +
+          compound[2].charAt(0).toUpperCase() + compound[2].slice(1).toLowerCase()
+        );
+      }
+      return words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase();
+    }
+    return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+  return 'Student';
+}
+
+/**
+ * Returns a human-friendly, authentic student display name.
+ * Rejects generic placeholder names like "Verified Student" or "Nerd Ninja"
+ * and resolves to the student's actual name or derived name from email.
+ */
+export function formatStudentDisplayName(fullName?: string, email?: string): string {
+  const cleanName = (fullName || '').trim();
+  const placeholders = ['verified student', 'nerd ninja', 'student', 'undefined', 'null'];
+  if (cleanName && !placeholders.includes(cleanName.toLowerCase())) {
+    return cleanName;
+  }
+  if (email && email.trim()) {
+    return formatNameFromEmail(email);
+  }
+  return 'Student';
+}
+
+/**
  * Extracts clean 2-letter uppercase initials from an email address or student name.
  * Examples:
  * - "techanalyst41@gmail.com" -> "TA"
@@ -21,9 +67,9 @@ export interface VerifiedUserSession {
  * - "student@gmail.com" -> "ST"
  */
 export function getEmailInitials(email?: string, name?: string): string {
-  // If user provided a multi-word display name, use it first
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
+  const effectiveName = formatStudentDisplayName(name, email);
+  if (effectiveName && effectiveName !== 'Student') {
+    const parts = effectiveName.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
@@ -32,7 +78,7 @@ export function getEmailInitials(email?: string, name?: string): string {
     }
   }
 
-  if (!email || !email.trim()) return 'NN';
+  if (!email || !email.trim()) return 'LA';
 
   const clean = email.trim().toLowerCase();
   const username = clean.split('@')[0] || '';
