@@ -1503,3 +1503,97 @@ export async function updateStudentProfile(
   }
 }
 
+/**
+ * Strictly verifies whether a student's email has been verified in the Firestore database
+ * (checking 'users', 'students', 'enrollments' collections and active Firebase Auth state).
+ * Returns true only if verified in database, preventing reliance solely on local storage state.
+ */
+export async function checkStudentVerificationInDatabase(email: string): Promise<{
+  isVerified: boolean;
+  status?: string;
+  fullName?: string;
+  source?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) {
+    return { isVerified: false };
+  }
+  const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+
+  // 1. Check 'users' collection in Firestore
+  try {
+    const uSnap = await getDoc(doc(db, 'users', userDocId));
+    if (uSnap.exists()) {
+      const uData = uSnap.data();
+      if (uData.emailVerified === true || uData.status === 'verified' || uData.status === 'enrolled') {
+        return {
+          isVerified: true,
+          status: uData.status || 'verified',
+          fullName: uData.fullName,
+          source: 'users'
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Check users verification note:", err);
+  }
+
+  // 2. Check 'students' collection in Firestore
+  try {
+    const sSnap = await getDoc(doc(db, 'students', userDocId));
+    if (sSnap.exists()) {
+      const sData = sSnap.data();
+      if (sData.emailVerified === true || sData.status === 'verified' || sData.status === 'enrolled') {
+        return {
+          isVerified: true,
+          status: sData.status || 'verified',
+          fullName: sData.fullName,
+          source: 'students'
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Check students verification note:", err);
+  }
+
+  // 3. Check 'enrollments' collection in Firestore
+  try {
+    const q = query(
+      collection(db, 'enrollments'),
+      where('email', '==', cleanEmail)
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled') {
+          return {
+            isVerified: true,
+            status: data.status || 'verified',
+            fullName: data.fullName,
+            source: 'enrollments'
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Check enrollments verification note:", err);
+  }
+
+  // 4. Check active Firebase Auth user
+  try {
+    if (auth.currentUser && auth.currentUser.email?.toLowerCase() === cleanEmail) {
+      if (auth.currentUser.emailVerified) {
+        return {
+          isVerified: true,
+          status: 'verified',
+          fullName: auth.currentUser.displayName || undefined,
+          source: 'firebase_auth'
+        };
+      }
+    }
+  } catch {}
+
+  return { isVerified: false };
+}
+
