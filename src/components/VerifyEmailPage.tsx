@@ -25,7 +25,6 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
   const [verifiedEmail, setVerifiedEmail] = useState<string>('');
   const [courseId, setCourseId] = useState<string>('');
   const [enrolledCourseTitle, setEnrolledCourseTitle] = useState<string>('');
-  const [manualEmailInput, setManualEmailInput] = useState<string>('');
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -46,7 +45,7 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
             const studentName = formatStudentDisplayName(dbStatus.fullName, emailToCheck);
             setVerifiedEmail(emailToCheck);
             setStatus('already_verified');
-            setMessage('Your email address is verified in the database and your student account is active.');
+            setMessage('Your email address is already verified in the database and your student account is active.');
             
             let targetCourseId = '';
             const lastEnroll = typeof window !== 'undefined' ? localStorage.getItem('last_lafole_enrollment') : null;
@@ -63,16 +62,16 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
             onEmailVerified?.(emailToCheck, studentName, targetCourseId);
           } else {
             setStatus('error');
-            setMessage('No verification token provided in URL. Please use the verification link sent to your email.');
+            setMessage('No verification token provided in URL. For account security, you must click the verification link sent directly to your email address.');
           }
         }).catch(() => {
           setStatus('error');
-          setMessage('No verification token provided in URL. You can verify using your email below.');
+          setMessage('No verification token provided in URL. Please click the verification link sent to your email address.');
         });
         return;
       }
       setStatus('error');
-      setMessage('No verification token provided in URL. You can verify using your email below.');
+      setMessage('No verification token provided in URL. Please check your email inbox and click the verification link sent to your address.');
       return;
     }
 
@@ -129,50 +128,6 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
 
     executeVerification();
   }, [courses, onEmailVerified]);
-
-  const handleManualVerify = async (targetEmail: string) => {
-    const cleanEmail = (targetEmail || '').trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setMessage('Please enter a valid email address.');
-      return;
-    }
-    setVerifiedEmail(cleanEmail);
-    setStatus('verifying');
-    
-    try {
-      const res = await verifyEmailByToken('', cleanEmail);
-      if (res.success) {
-        setStatus('success');
-        setMessage(res.message || 'Email successfully verified! Your account is active.');
-        const resolvedName = formatStudentDisplayName(res.record?.fullName, cleanEmail);
-
-        let resolvedCourseId = courseId;
-        if (!resolvedCourseId && typeof window !== 'undefined') {
-          const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-          if (lastEnroll) {
-            try {
-              const parsed = JSON.parse(lastEnroll);
-              if (parsed.courseId) resolvedCourseId = parsed.courseId;
-            } catch {}
-          }
-        }
-        const matched = courses.find(c => c.id === resolvedCourseId) || courses[0];
-        if (matched) {
-          addCourseToCart(matched);
-          setEnrolledCourseTitle(matched.title);
-        }
-
-        onEmailVerified?.(cleanEmail, resolvedName, matched?.id);
-      } else {
-        setStatus('error');
-        setMessage(res.message || 'Verification could not be completed.');
-      }
-    } catch {
-      setStatus('success');
-      const resolvedName = formatNameFromEmail(cleanEmail);
-      onEmailVerified?.(cleanEmail, resolvedName, courses[0]?.id);
-    }
-  };
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4 bg-[#FBFBF9] dark:bg-[#0B0F17]">
@@ -282,34 +237,28 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
               <Mail className="w-8 h-8" />
             </div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-              Verify Email Address
+              Verification Link Required
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Verify your email to unlock your verified student navbar with your initials and access to My Dashboard.
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              {message}
             </p>
 
-            <div className="space-y-2 pt-2 text-left">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Enter your email address
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="email"
-                  value={manualEmailInput}
-                  onChange={(e) => setManualEmailInput(e.target.value)}
-                  placeholder="e.g. student@gmail.com"
-                  className="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-[#22C55E]"
-                />
-                <button
-                  onClick={() => handleManualVerify(manualEmailInput)}
-                  className="px-4 py-2.5 bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold rounded-xl transition-colors cursor-pointer flex-shrink-0"
-                >
-                  Verify Now
-                </button>
-              </div>
+            <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-left space-y-1.5">
+              <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200 block uppercase tracking-wider">
+                Strict Security Policy
+              </span>
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                To prevent unauthorized access and fake accounts, email verification must be completed strictly by clicking the activation link sent directly to your personal email inbox.
+              </p>
             </div>
 
             <div className="pt-3 space-y-2">
+              <button
+                onClick={onGoToDashboard}
+                className="w-full py-3 px-6 bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Go to Sign In
+              </button>
               <button
                 onClick={onBackToHome}
                 className="w-full py-2.5 px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl transition-all cursor-pointer"

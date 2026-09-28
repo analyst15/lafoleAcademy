@@ -30,7 +30,7 @@ import {
   X
 } from 'lucide-react';
 import { Course } from '../types';
-import { saveClientDetailsAndInitiateVerification, verifyEmailByToken, resendVerificationEmail, signInStudent, db } from '../lib/firebase';
+import { saveClientDetailsAndInitiateVerification, resendVerificationEmail, signInStudent, db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { COUNTRIES, CountryOption } from '../data/countries';
 
@@ -76,22 +76,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     if (isUserSignedIn && userEmail) {
       return { email: userEmail, name: userFullName };
     }
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('lafole_auth_user');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed.email) return parsed;
-        }
-        const lastEnr = localStorage.getItem('last_lafole_enrollment');
-        if (lastEnr) {
-          const parsed = JSON.parse(lastEnr);
-          if (parsed.email && parsed.emailVerified) {
-            return { email: parsed.email, name: parsed.fullName };
-          }
-        }
-      } catch {}
-    }
     return null;
   });
 
@@ -136,15 +120,25 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [verificationToken, setVerificationToken] = useState('');
   const [verificationUrl, setVerificationUrl] = useState('');
   const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [emailDeliveredLive, setEmailDeliveredLive] = useState(false);
-  const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(!!isUserSignedIn);
   const [enrollmentId, setEnrollmentId] = useState('');
 
   // Submission & validation state
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isPendingVerificationNotice, setIsPendingVerificationNotice] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Cooldown timer for email resend
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const cartDisplayItems = useMemo(() => {
     if (cartItems && cartItems.length > 0) {
@@ -334,23 +328,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
   };
 
-  const handleCopyVerificationLink = () => {
-    const targetUrl = verificationUrl || `${window.location.origin}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
-    if (typeof navigator !== 'undefined') {
-      navigator.clipboard.writeText(targetUrl);
-      setIsCopiedLink(true);
-      showToast('📋 Verification link copied to clipboard!');
-      setTimeout(() => setIsCopiedLink(false), 2500);
-    }
-  };
-
   const handleResendVerification = async () => {
-    if (!email) return;
+    const targetEmail = (email || '').trim().toLowerCase();
+    if (!targetEmail) {
+      showToast('Please enter your email address first.');
+      return;
+    }
+    if (resendCooldown > 0) {
+      showToast(`Please wait ${resendCooldown}s before requesting another verification email.`);
+      return;
+    }
+
     setIsResendingEmail(true);
     try {
-      const targetUrl = verificationUrl || `${window.location.origin}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+      const targetUrl = verificationUrl || `${window.location.origin}/verify-email?token=${verificationToken}&email=${encodeURIComponent(targetEmail)}`;
       const res = await resendVerificationEmail({
-        email: email.trim().toLowerCase(),
+        email: targetEmail,
         fullName: fullName || 'Student',
         courseTitle: course.title,
         verificationUrl: targetUrl,
@@ -360,29 +353,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         setEmailDeliveredLive(true);
       }
       showToast(res.message);
+      setResendCooldown(30);
     } catch {
-      showToast(`Verification email resent to ${email}`);
+      showToast(`Verification email resent to ${targetEmail}`);
+      setResendCooldown(30);
     } finally {
       setIsResendingEmail(false);
-    }
-  };
-
-  const handleVerifyEmail = async () => {
-    if (!verificationToken) return;
-    try {
-      const res = await verifyEmailByToken(verificationToken, email);
-      if (res.success) {
-        setIsEmailVerified(true);
-        onEmailVerified?.(email.trim().toLowerCase(), fullName);
-        showToast('🎉 Email verified in Firestore! Welcome aboard.');
-      } else {
-        showToast(res.message);
-      }
-    } catch (err) {
-      console.error(err);
-      setIsEmailVerified(true);
-      onEmailVerified?.(email.trim().toLowerCase(), fullName);
-      showToast('Email verified.');
     }
   };
 
@@ -482,8 +458,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
           paymentMethod: paymentMethod,
           paymentStatus: 'completed',
           transactionRef: transactionRef || 'ONLINE_PAYMENT',
-          status: 'enrolled',
-          emailVerified: true,
+          status: 'pending_verification',
+          emailVerified: false,
           enrolledAt: new Date().toISOString(),
           lastUpdated: new Date().toISOString()
         }, { merge: true });
@@ -492,27 +468,25 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         await setDoc(doc(db, 'users', userDocId), {
           lastEnrolledCourseId: course.id,
           lastEnrolledCourseTitle: course.title,
-          emailVerified: true,
-          status: 'enrolled',
+          emailVerified: false,
+          status: 'pending_verification',
           lastUpdated: new Date().toISOString()
         }, { merge: true });
 
         await setDoc(doc(db, 'students', userDocId), {
           lastEnrolledCourseId: course.id,
           lastEnrolledCourseTitle: course.title,
-          emailVerified: true,
-          status: 'enrolled',
+          emailVerified: false,
+          status: 'pending_verification',
           lastUpdated: new Date().toISOString()
         }, { merge: true });
       } catch (err) {
         console.warn("Firestore update:", err);
       }
 
-      setIsSuccess(true);
-      showToast('🎉 Enrollment confirmed! Welcome aboard.');
-      setTimeout(() => {
-        onCompleteEnrollment(course);
-      }, 1500);
+      // Strictly require verification via email link
+      setIsPendingVerificationNotice(true);
+      showToast('Payment confirmed! Please verify your email to access your dashboard.');
     } catch (err: any) {
       showToast("Error processing payment: " + (err?.message || "Please retry."));
     } finally {
@@ -1486,29 +1460,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-lg border border-amber-200 dark:border-amber-800">
                           <Mail className="w-3.5 h-3.5 text-amber-500" />
-                          <span>{emailDeliveredLive ? 'Delivered to inbox/spam' : 'Verification sent'}</span>
+                          <span>{emailDeliveredLive ? 'Delivered to inbox/spam' : 'Verification link sent'}</span>
                         </span>
                         <button
                           type="button"
-                          onClick={handleVerifyEmail}
-                          className="px-3 py-1 bg-[#22C55E] hover:bg-[#16a34a] text-white text-xs font-bold rounded-lg shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
-                        >
-                          Verify Account Now
-                        </button>
-                        <button
-                          type="button"
                           onClick={handleResendVerification}
-                          disabled={isResendingEmail}
-                          className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                          disabled={isResendingEmail || resendCooldown > 0}
+                          className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
                         >
-                          {isResendingEmail ? 'Sending...' : 'Resend Email'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCopyVerificationLink}
-                          className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-lg transition-colors cursor-pointer"
-                        >
-                          {isCopiedLink ? 'Copied Link!' : 'Copy Link'}
+                          {isResendingEmail ? 'Sending...' : resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 'Resend Email'}
                         </button>
                       </div>
                     )}
@@ -1604,44 +1564,21 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                               )}
                             </div>
                             <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-1 leading-relaxed">
-                              {emailDeliveredLive
-                                ? "Real email dispatched! Check your inbox or spam. You can also activate instantly below."
-                                : "If your mail server delays or filters the incoming message, you can activate your account immediately using the button below without waiting."}
+                              Please check your inbox or spam folder. For student account security and to prevent fake accounts, you must click the link sent to your email to verify your address and activate your dashboard access.
                             </p>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-                          {/* 1-Click Instant Verification */}
-                          <button
-                            type="button"
-                            onClick={handleVerifyEmail}
-                            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-[#22C55E] hover:bg-[#16a34a] text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-[1.02] active:scale-95"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Verify Account Now</span>
-                          </button>
-
-                          {/* Copy Direct Link */}
-                          <button
-                            type="button"
-                            onClick={handleCopyVerificationLink}
-                            className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white dark:bg-slate-900 hover:bg-emerald-100 dark:hover:bg-slate-800 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-semibold text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
-                            title="Copy the direct activation link"
-                          >
-                            {isCopiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{isCopiedLink ? 'Copied Link!' : 'Copy Link'}</span>
-                          </button>
-
-                          {/* Resend Email */}
+                          {/* Resend Email Button */}
                           <button
                             type="button"
                             onClick={handleResendVerification}
-                            disabled={isResendingEmail}
-                            className="inline-flex items-center space-x-1 px-3 py-2 bg-white dark:bg-slate-900 hover:bg-emerald-100 dark:hover:bg-slate-800 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-semibold text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
+                            disabled={isResendingEmail || resendCooldown > 0}
+                            className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white dark:bg-slate-900 hover:bg-emerald-100 dark:hover:bg-slate-800 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-semibold text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
                           >
-                            <Send className="w-3 h-3" />
-                            <span>{isResendingEmail ? 'Sending...' : 'Resend'}</span>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>{isResendingEmail ? 'Sending...' : resendCooldown > 0 ? `Resend (${resendCooldown}s)` : 'Resend Email'}</span>
                           </button>
                         </div>
                       </div>
@@ -2040,6 +1977,74 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               <span>Go to Classroom &amp; Start Lesson 1</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+
+          </div>
+        </div>
+      )}
+
+      {/* ================= PENDING EMAIL VERIFICATION NOTICE MODAL ================= */}
+      {isPendingVerificationNotice && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 text-center space-y-5 shadow-2xl animate-scaleUp">
+            
+            <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/80 text-amber-500 rounded-full mx-auto flex items-center justify-center border border-amber-200 dark:border-amber-800">
+              <Mail className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                Payment Received! 🎉
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                Thank you, <span className="font-semibold text-slate-900 dark:text-white">{fullName || 'Student'}</span>! Your payment for <span className="font-semibold text-slate-900 dark:text-white">{course.title}</span> has been confirmed.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-left space-y-2">
+              <div className="flex items-center space-x-2 text-amber-900 dark:text-amber-200 text-xs font-bold uppercase tracking-wider">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                <span>Email Verification Required</span>
+              </div>
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                To protect student accounts and prevent fake signups, access to your student dashboard requires clicking the activation link sent to:
+              </p>
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-amber-200/80 dark:border-amber-800 text-center font-bold text-xs text-slate-900 dark:text-white break-all">
+                {email || 'your email address'}
+              </div>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                Please check your inbox (and spam/junk folder). Click <strong>Verify My Email Address</strong> in the email to activate your account.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={isResendingEmail || resendCooldown > 0}
+                className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold text-xs rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isResendingEmail ? 'Sending...' : resendCooldown > 0 ? `Resend Email (${resendCooldown}s)` : 'Resend Verification Email'}</span>
+              </button>
+
+              {onNavigateToLogin && (
+                <button
+                  type="button"
+                  onClick={onNavigateToLogin}
+                  className="w-full py-3 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  Go to Sign In
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={onBackToHome}
+                className="w-full py-2.5 px-4 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Return to Home
+              </button>
+            </div>
 
           </div>
         </div>

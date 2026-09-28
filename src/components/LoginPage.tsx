@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowRight, 
   ArrowLeft,
@@ -10,7 +10,8 @@ import {
   Mail,
   Lock,
   Sparkles,
-  KeyRound
+  KeyRound,
+  Send
 } from 'lucide-react';
 import { 
   signInStudent, 
@@ -18,8 +19,7 @@ import {
   requestPasswordResetCode, 
   resetPasswordWithCode,
   registerNewStudent,
-  resendVerificationEmail,
-  verifyEmailByToken
+  resendVerificationEmail
 } from '../lib/firebase';
 
 interface LoginPageProps {
@@ -78,7 +78,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     message: string;
   } | null>(null);
   const [isResendingSignupEmail, setIsResendingSignupEmail] = useState(false);
-  const [isVerifyingSignupInstant, setIsVerifyingSignupInstant] = useState(false);
+  const [resendSignupCooldown, setResendSignupCooldown] = useState(0);
+
+  // Cooldown timer for signup resend
+  useEffect(() => {
+    if (resendSignupCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendSignupCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendSignupCooldown]);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMessage({ text, type });
@@ -148,44 +157,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
-  const handleInstantVerifySignup = async () => {
-    if (!signupSuccessData) return;
-    setIsVerifyingSignupInstant(true);
-    try {
-      const res = await verifyEmailByToken(signupSuccessData.token, signupSuccessData.email);
-      if (res.success) {
-        showToast("Email verified successfully! Redirecting to dashboard...", "success");
-        if (typeof window !== 'undefined') {
-          const studentSession = {
-            name: signupSuccessData.fullName,
-            email: signupSuccessData.email,
-            signedInAt: new Date().toISOString()
-          };
-          localStorage.setItem('lafole_auth_user', JSON.stringify(studentSession));
-          localStorage.setItem('lafole_email_verified', 'true');
-          localStorage.setItem('lafole_verified_email', signupSuccessData.email);
-          localStorage.setItem('lafole_verified_fullname', signupSuccessData.fullName);
-        }
-        setTimeout(() => {
-          onSuccessSignIn({ email: signupSuccessData.email, name: signupSuccessData.fullName });
-          if (onNavigateToDashboard) {
-            onNavigateToDashboard();
-          } else {
-            onBackToHome();
-          }
-        }, 1000);
-      } else {
-        showToast(res.message || "Could not verify email.", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.message || "Verification failed.", "error");
-    } finally {
-      setIsVerifyingSignupInstant(false);
-    }
-  };
-
   const handleResendSignupEmail = async () => {
     if (!signupSuccessData) return;
+    if (resendSignupCooldown > 0) {
+      showToast(`Please wait ${resendSignupCooldown}s before requesting another email.`, "info");
+      return;
+    }
     setIsResendingSignupEmail(true);
     try {
       const res = await resendVerificationEmail({
@@ -195,9 +172,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         verificationUrl: signupSuccessData.url,
         token: signupSuccessData.token
       });
-      showToast(res.message || "Verification email resent!", "success");
+      showToast(res.message || "Verification email resent! Please check your inbox.", "success");
+      setResendSignupCooldown(30);
     } catch {
       showToast("Verification email resent.", "info");
+      setResendSignupCooldown(30);
     } finally {
       setIsResendingSignupEmail(false);
     }
@@ -525,56 +504,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
             <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/80 dark:border-emerald-800 text-xs sm:text-[13px] text-emerald-900 dark:text-emerald-200 leading-relaxed space-y-2">
               <p>
-                We've sent a secure verification email. Please check your inbox and <strong>spam/junk folder</strong> to activate your student account.
+                We've sent a secure verification email. Please check your inbox and <strong>spam/junk folder</strong>.
               </p>
               <p className="text-slate-600 dark:text-slate-400 text-xs">
-                Hosted on Vercel or preview domain? You can also activate in 1-click right below:
+                To prevent unauthorized accounts and protect student security, you must click <strong>Verify My Email Address</strong> in the email to activate your account.
               </p>
             </div>
 
-            {/* Instant Actions */}
+            {/* Actions */}
             <div className="space-y-2.5 pt-1">
               <button
                 type="button"
-                onClick={handleInstantVerifySignup}
-                disabled={isVerifyingSignupInstant}
-                className="w-full h-11 bg-[#2EB641] hover:bg-[#259B36] text-white font-semibold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                onClick={handleResendSignupEmail}
+                disabled={isResendingSignupEmail || resendSignupCooldown > 0}
+                className="w-full h-11 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold text-xs sm:text-sm rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
               >
-                {isVerifyingSignupInstant ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    <span>Activating account...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Verify Account & Go to Dashboard</span>
-                  </>
-                )}
+                <Send className="w-3.5 h-3.5" />
+                <span>{isResendingSignupEmail ? 'Sending...' : resendSignupCooldown > 0 ? `Resend Email (${resendSignupCooldown}s)` : 'Resend Verification Email'}</span>
               </button>
 
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={handleResendSignupEmail}
-                  disabled={isResendingSignupEmail}
-                  className="flex-1 h-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                >
-                  {isResendingSignupEmail ? 'Sending...' : 'Resend Email'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof navigator !== 'undefined') {
-                      navigator.clipboard.writeText(signupSuccessData.url);
-                      showToast("Verification link copied to clipboard!", "info");
-                    }
-                  }}
-                  className="flex-1 h-10 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                >
-                  Copy Link
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signin');
+                  setIdentifier(signupSuccessData.email);
+                  setSignupSuccessData(null);
+                }}
+                className="w-full h-11 bg-[#2EB641] hover:bg-[#259B36] text-white font-semibold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>Go to Sign In</span>
+              </button>
+            </div>
 
               <div className="pt-2 text-center">
                 <button
@@ -590,7 +550,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </button>
               </div>
             </div>
-          </div>
         ) : authMode === 'signup' ? (
           /* ================= VIEW: SIGN UP FORM ================= */
           <form onSubmit={handleSignUp} className="space-y-4">

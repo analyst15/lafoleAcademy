@@ -560,226 +560,169 @@ export async function verifyEmailByToken(
   expired?: boolean; 
 }> {
   try {
-    if (!token && !email) {
-      return { success: false, message: "Missing verification token or email." };
+    const cleanToken = (token || '').trim();
+    if (!cleanToken) {
+      return { 
+        success: false, 
+        message: "A valid verification token from the link sent to your email is required. Please check your inbox and click the verification link." 
+      };
     }
 
     // Attempt Firebase Auth action code verification if token looks like an oobCode
     try {
-      if (token && token.length > 15 && !token.startsWith('tok_')) {
-        await applyActionCode(auth, token);
+      if (cleanToken.length > 15 && !cleanToken.startsWith('tok_')) {
+        await applyActionCode(auth, cleanToken);
       }
     } catch {}
 
-    // Prepare local fallback record
-    let fallbackRecord: any = null;
-    if (typeof localStorage !== 'undefined') {
-      const localData = localStorage.getItem('last_lafole_enrollment');
-      if (localData) {
-        try {
-          const parsed = JSON.parse(localData);
-          if (
-            (token && parsed.verificationToken === token) ||
-            (email && parsed.email?.toLowerCase() === email.toLowerCase())
-          ) {
-            fallbackRecord = parsed;
-          }
-        } catch {}
-      }
-    }
+    // Query Firestore enrollments collection for matching verificationToken
+    try {
+      const q = query(
+        collection(db, 'enrollments'), 
+        where('verificationToken', '==', cleanToken)
+      );
+      const snap = await getDocs(q);
 
-    // Try querying Firestore
-    if (token) {
-      try {
-        const q = query(
-          collection(db, 'enrollments'), 
-          where('verificationToken', '==', token)
-        );
-        const snap = await getDocs(q);
+      if (!snap.empty) {
+        const docItem = snap.docs[0];
+        const data = docItem.data();
 
-        if (!snap.empty) {
-          const docItem = snap.docs[0];
-          const data = docItem.data();
+        // Check if this enrollment or user has ALREADY been verified
+        const isAlreadyVerified = data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled';
 
-          // Check if this enrollment or user has ALREADY been verified
-          const isAlreadyVerified = data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled';
-
-          // Enforce 24-hour expiration check (links are strictly valid for 24 hours)
-          const isExpired = (data.verificationExpiresAt && new Date(data.verificationExpiresAt).getTime() < Date.now()) ||
-            (data.createdAt && (Date.now() - new Date(data.createdAt).getTime() > 24 * 60 * 60 * 1000));
-          
-          if (isExpired && !isAlreadyVerified) {
-            return { 
-              success: false, 
-              expired: true,
-              message: "This verification link has expired (links are valid for 24 hours). Please request a new verification link." 
-            };
-          }
-
-          let studentFullName = data.fullName || '';
-          if (!studentFullName || ['verified student', 'nerd ninja'].includes(studentFullName.toLowerCase())) {
-            studentFullName = formatNameFromEmail(data.email || '');
-          }
-
-          const verifiedRecord = { 
-            ...data, 
-            fullName: studentFullName, 
-            emailVerified: true, 
-            status: 'verified',
-            verifiedAt: data.verifiedAt || new Date().toISOString()
-          };
-
-          if (typeof localStorage !== 'undefined') {
-            if (data.email) localStorage.setItem('lafole_verified_email', data.email);
-            if (studentFullName) localStorage.setItem('lafole_verified_fullname', studentFullName);
-            localStorage.setItem('lafole_email_verified', 'true');
-            localStorage.setItem('last_lafole_enrollment', JSON.stringify(verifiedRecord));
-          }
-
-          // If the link was ALREADY verified, notify gracefully without re-running mutations
-          if (isAlreadyVerified) {
-            return {
-              success: true,
-              alreadyVerified: true,
-              message: "This email address has already been verified. Your account is active and ready to sign in.",
-              record: verifiedRecord
-            };
-          }
-
-          // First-time verification: update Firestore across enrollments, users, and students
-          try {
-            await updateDoc(docItem.ref, {
-              emailVerified: true,
-              status: 'verified',
-              verifiedAt: new Date().toISOString()
-            });
-          } catch (updErr) {
-            // Non-blocking update failure
-          }
-
-          if (data.email) {
-            const userDocId = data.email.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '_');
-            try {
-              await setDoc(doc(db, 'users', userDocId), { emailVerified: true, status: 'verified', verifiedAt: new Date().toISOString(), fullName: studentFullName }, { merge: true });
-            } catch {}
-            try {
-              await setDoc(doc(db, 'students', userDocId), { emailVerified: true, status: 'verified', verifiedAt: new Date().toISOString(), fullName: studentFullName }, { merge: true });
-            } catch {}
-          }
-
+        // Enforce 24-hour expiration check (links are strictly valid for 24 hours)
+        const isExpired = (data.verificationExpiresAt && new Date(data.verificationExpiresAt).getTime() < Date.now()) ||
+          (data.createdAt && (Date.now() - new Date(data.createdAt).getTime() > 24 * 60 * 60 * 1000));
+        
+        if (isExpired && !isAlreadyVerified) {
           return { 
-            success: true, 
-            message: "Email successfully verified! Your account is fully active.",
+            success: false, 
+            expired: true,
+            message: "This verification link has expired (links are valid for 24 hours). Please request a new verification link." 
+          };
+        }
+
+        let studentFullName = data.fullName || '';
+        if (!studentFullName || ['verified student', 'nerd ninja'].includes(studentFullName.toLowerCase())) {
+          studentFullName = formatNameFromEmail(data.email || '');
+        }
+
+        const verifiedRecord = { 
+          ...data, 
+          fullName: studentFullName, 
+          emailVerified: true, 
+          status: 'verified',
+          verifiedAt: data.verifiedAt || new Date().toISOString()
+        };
+
+        if (typeof localStorage !== 'undefined') {
+          if (data.email) localStorage.setItem('lafole_verified_email', data.email);
+          if (studentFullName) localStorage.setItem('lafole_verified_fullname', studentFullName);
+          localStorage.setItem('lafole_email_verified', 'true');
+          localStorage.setItem('last_lafole_enrollment', JSON.stringify(verifiedRecord));
+        }
+
+        // If the link was ALREADY verified, notify gracefully without re-running mutations
+        if (isAlreadyVerified) {
+          return {
+            success: true,
+            alreadyVerified: true,
+            message: "This email address has already been verified. Your account is active and ready to sign in.",
             record: verifiedRecord
           };
         }
-      } catch (fsErr: any) {
-        console.warn("Firestore query during verification encountered issue, using cached verification:", fsErr?.message || fsErr);
-      }
-    }
 
-    // If Firestore was unreachable or empty, use local fallback
-    if (fallbackRecord) {
-      fallbackRecord.emailVerified = true;
-      fallbackRecord.status = 'verified';
-      fallbackRecord.verifiedAt = new Date().toISOString();
-      if (!fallbackRecord.fullName || ['verified student', 'nerd ninja'].includes(fallbackRecord.fullName.toLowerCase())) {
-        fallbackRecord.fullName = formatNameFromEmail(fallbackRecord.email);
-      }
-      if (typeof localStorage !== 'undefined') {
-        if (fallbackRecord.email) localStorage.setItem('lafole_verified_email', fallbackRecord.email);
-        if (fallbackRecord.fullName) localStorage.setItem('lafole_verified_fullname', fallbackRecord.fullName);
-        localStorage.setItem('lafole_email_verified', 'true');
-        localStorage.setItem('last_lafole_enrollment', JSON.stringify(fallbackRecord));
-      }
-      return { 
-        success: true, 
-        message: "Email verified successfully! Your account is active.", 
-        record: fallbackRecord 
-      };
-    }
-
-    // If valid email was supplied directly (e.g. from UI)
-    if (email && email.includes('@')) {
-      const cleanEmail = email.trim().toLowerCase();
-      const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
-      
-      // Look up existing student profile in Firestore to preserve real name
-      let resolvedFullName = '';
-      try {
-        const uSnap = await getDoc(doc(db, 'users', userDocId));
-        if (uSnap.exists()) {
-          const uData = uSnap.data();
-          if (uData.fullName && !['verified student', 'nerd ninja'].includes(uData.fullName.toLowerCase())) {
-            resolvedFullName = uData.fullName;
-          }
+        // First-time verification: update Firestore across enrollments, users, and students
+        try {
+          await updateDoc(docItem.ref, {
+            emailVerified: true,
+            status: 'verified',
+            verifiedAt: new Date().toISOString()
+          });
+        } catch (updErr) {
+          // Non-blocking update failure
         }
-      } catch {}
 
-      if (!resolvedFullName) {
-        try {
-          const sSnap = await getDoc(doc(db, 'students', userDocId));
-          if (sSnap.exists()) {
-            const sData = sSnap.data();
-            if (sData.fullName && !['verified student', 'nerd ninja'].includes(sData.fullName.toLowerCase())) {
-              resolvedFullName = sData.fullName;
-            }
-          }
-        } catch {}
+        if (data.email) {
+          const userDocId = data.email.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '_');
+          try {
+            await setDoc(doc(db, 'users', userDocId), { emailVerified: true, status: 'verified', verifiedAt: new Date().toISOString(), fullName: studentFullName }, { merge: true });
+          } catch {}
+          try {
+            await setDoc(doc(db, 'students', userDocId), { emailVerified: true, status: 'verified', verifiedAt: new Date().toISOString(), fullName: studentFullName }, { merge: true });
+          } catch {}
+        }
+
+        return { 
+          success: true, 
+          message: "Email successfully verified! Your student account is now active.",
+          record: verifiedRecord
+        };
       }
-
-      if (!resolvedFullName) {
-        try {
-          const q = query(collection(db, 'enrollments'), where('email', '==', cleanEmail));
-          const eSnap = await getDocs(q);
-          if (!eSnap.empty) {
-            const eData = eSnap.docs[0].data();
-            if (eData.fullName && !['verified student', 'nerd ninja'].includes(eData.fullName.toLowerCase())) {
-              resolvedFullName = eData.fullName;
-            }
-          }
-        } catch {}
-      }
-
-      if (!resolvedFullName) {
-        resolvedFullName = formatNameFromEmail(cleanEmail);
-      }
-
-      try {
-        await setDoc(doc(db, 'users', userDocId), { emailVerified: true, status: 'verified', verifiedAt: new Date().toISOString(), fullName: resolvedFullName }, { merge: true });
-      } catch {}
-      try {
-        await setDoc(doc(db, 'students', userDocId), { emailVerified: true, status: 'verified', verifiedAt: new Date().toISOString(), fullName: resolvedFullName }, { merge: true });
-      } catch {}
-
-      const directRecord = {
-        email: cleanEmail,
-        fullName: resolvedFullName,
-        status: 'verified',
-        emailVerified: true,
-        verifiedAt: new Date().toISOString()
-      };
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('lafole_verified_email', cleanEmail);
-        localStorage.setItem('lafole_verified_fullname', resolvedFullName);
-        localStorage.setItem('lafole_email_verified', 'true');
-        localStorage.setItem('last_lafole_enrollment', JSON.stringify(directRecord));
-      }
-      return {
-        success: true,
-        message: "Email successfully verified! Your account is active.",
-        record: directRecord
-      };
+    } catch (fsErr: any) {
+      console.warn("Firestore query during token verification:", fsErr?.message || fsErr);
     }
 
-    return { success: false, message: "Verification link is invalid or expired." };
-  } catch (error: any) {
-    console.warn("Verification completed with fallback:", error?.message || error);
-    const fallbackName = formatNameFromEmail(email || 'student@lafole.so');
+    // Check secondary token store in verification_emails collection
+    try {
+      const emailQ = query(
+        collection(db, 'verification_emails'),
+        where('token', '==', cleanToken)
+      );
+      const emailSnap = await getDocs(emailQ);
+      if (!emailSnap.empty) {
+        const emailDoc = emailSnap.docs[0].data();
+        const recipientEmail = emailDoc.to || email;
+        if (recipientEmail) {
+          const userDocId = recipientEmail.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '_');
+          const studentFullName = emailDoc.recipientName || formatNameFromEmail(recipientEmail);
+          
+          await setDoc(doc(db, 'users', userDocId), {
+            emailVerified: true,
+            status: 'verified',
+            verifiedAt: new Date().toISOString(),
+            fullName: studentFullName
+          }, { merge: true });
+          await setDoc(doc(db, 'students', userDocId), {
+            emailVerified: true,
+            status: 'verified',
+            verifiedAt: new Date().toISOString(),
+            fullName: studentFullName
+          }, { merge: true });
+
+          const verifiedRecord = {
+            email: recipientEmail,
+            fullName: studentFullName,
+            status: 'verified',
+            emailVerified: true,
+            verifiedAt: new Date().toISOString()
+          };
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('lafole_verified_email', recipientEmail);
+            localStorage.setItem('lafole_verified_fullname', studentFullName);
+            localStorage.setItem('lafole_email_verified', 'true');
+            localStorage.setItem('last_lafole_enrollment', JSON.stringify(verifiedRecord));
+          }
+          return {
+            success: true,
+            message: "Email successfully verified! Your account is active.",
+            record: verifiedRecord
+          };
+        }
+      }
+    } catch (secondaryErr) {
+      console.warn("Secondary token check:", secondaryErr);
+    }
+
     return { 
-      success: true, 
-      message: "Email verified successfully.", 
-      record: { email: email || 'student@lafole.so', fullName: fallbackName, emailVerified: true, status: 'verified' } 
+      success: false, 
+      message: "This verification link is invalid or has expired. Please check your inbox or request a new verification email." 
+    };
+  } catch (error: any) {
+    console.warn("Verification failed:", error?.message || error);
+    return { 
+      success: false, 
+      message: "Verification could not be completed. Please ensure you clicked the exact link sent to your email." 
     };
   }
 }
