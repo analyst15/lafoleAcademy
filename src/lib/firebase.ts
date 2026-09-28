@@ -19,7 +19,8 @@ import {
   sendPasswordResetEmail,
   sendEmailVerification,
   applyActionCode,
-  updatePassword
+  updatePassword,
+  signOut
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { formatNameFromEmail } from '../utils/userUtils';
@@ -1504,96 +1505,108 @@ export async function updateStudentProfile(
 }
 
 /**
- * Strictly verifies whether a student's email has been verified in the Firestore database
- * (checking 'users', 'students', 'enrollments' collections and active Firebase Auth state).
- * Returns true only if verified in database, preventing reliance solely on local storage state.
+ * Completely signs out the student session from Firebase Auth and clears any student session storage
  */
-export async function checkStudentVerificationInDatabase(email: string): Promise<{
-  isVerified: boolean;
-  status?: string;
-  fullName?: string;
-  source?: string;
-}> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) {
-    return { isVerified: false };
+export async function signOutStudent(): Promise<void> {
+  try {
+    if (auth.currentUser) {
+      await signOut(auth);
+    }
+  } catch (err) {
+    console.warn("Error signing out of Firebase Auth:", err);
   }
+}
+
+export interface StudentVerificationStatusResult {
+  verified: boolean;
+  email: string;
+  fullName?: string;
+  status?: string;
+  source?: 'users' | 'students' | 'enrollments';
+  record?: any;
+}
+
+/**
+ * Validates a student's email verification status directly against the Firestore database 
+ * (users, students, enrollments) rather than relying solely on local storage state.
+ */
+export async function validateStudentVerificationStatus(
+  email: string
+): Promise<StudentVerificationStatusResult> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { verified: false, email: cleanEmail };
+  }
+
   const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
 
-  // 1. Check 'users' collection in Firestore
+  // 1. Check users collection
   try {
-    const uSnap = await getDoc(doc(db, 'users', userDocId));
-    if (uSnap.exists()) {
-      const uData = uSnap.data();
-      if (uData.emailVerified === true || uData.status === 'verified' || uData.status === 'enrolled') {
+    const userSnap = await getDoc(doc(db, 'users', userDocId));
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const isVerified = data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled';
+      if (isVerified) {
         return {
-          isVerified: true,
-          status: uData.status || 'verified',
-          fullName: uData.fullName,
-          source: 'users'
+          verified: true,
+          email: cleanEmail,
+          fullName: data.fullName,
+          status: data.status || 'verified',
+          source: 'users',
+          record: data
         };
       }
     }
   } catch (err) {
-    console.warn("Check users verification note:", err);
+    console.warn("Could not query users collection during verification check:", err);
   }
 
-  // 2. Check 'students' collection in Firestore
+  // 2. Check students collection
   try {
-    const sSnap = await getDoc(doc(db, 'students', userDocId));
-    if (sSnap.exists()) {
-      const sData = sSnap.data();
-      if (sData.emailVerified === true || sData.status === 'verified' || sData.status === 'enrolled') {
+    const studentSnap = await getDoc(doc(db, 'students', userDocId));
+    if (studentSnap.exists()) {
+      const data = studentSnap.data();
+      const isVerified = data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled';
+      if (isVerified) {
         return {
-          isVerified: true,
-          status: sData.status || 'verified',
-          fullName: sData.fullName,
-          source: 'students'
+          verified: true,
+          email: cleanEmail,
+          fullName: data.fullName,
+          status: data.status || 'verified',
+          source: 'students',
+          record: data
         };
       }
     }
   } catch (err) {
-    console.warn("Check students verification note:", err);
+    console.warn("Could not query students collection during verification check:", err);
   }
 
-  // 3. Check 'enrollments' collection in Firestore
+  // 3. Check enrollments collection
   try {
     const q = query(
       collection(db, 'enrollments'),
       where('email', '==', cleanEmail)
     );
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      for (const d of snap.docs) {
-        const data = d.data();
-        if (data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled') {
-          return {
-            isVerified: true,
-            status: data.status || 'verified',
-            fullName: data.fullName,
-            source: 'enrollments'
-          };
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("Check enrollments verification note:", err);
-  }
-
-  // 4. Check active Firebase Auth user
-  try {
-    if (auth.currentUser && auth.currentUser.email?.toLowerCase() === cleanEmail) {
-      if (auth.currentUser.emailVerified) {
+    const enrollSnap = await getDocs(q);
+    for (const docItem of enrollSnap.docs) {
+      const data = docItem.data();
+      const isVerified = data.emailVerified === true || data.status === 'verified' || data.status === 'enrolled';
+      if (isVerified) {
         return {
-          isVerified: true,
-          status: 'verified',
-          fullName: auth.currentUser.displayName || undefined,
-          source: 'firebase_auth'
+          verified: true,
+          email: cleanEmail,
+          fullName: data.fullName,
+          status: data.status || 'verified',
+          source: 'enrollments',
+          record: data
         };
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("Could not query enrollments collection during verification check:", err);
+  }
 
-  return { isVerified: false };
+  return { verified: false, email: cleanEmail };
 }
 

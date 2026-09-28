@@ -89,9 +89,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const labsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resourcesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Compute initials from verified email or full name
-  const effectiveEmail = verifiedUserEmail || studentProfile.email;
-  const effectiveName = formatStudentDisplayName(verifiedUserName || (isEmailVerified ? '' : studentProfile.name), effectiveEmail);
+  // Compute initials from verified email or full name (only when authenticated)
+  const effectiveEmail = isEmailVerified ? (verifiedUserEmail || studentProfile.email) : '';
+  const effectiveName = isEmailVerified ? formatStudentDisplayName(verifiedUserName || studentProfile.name, effectiveEmail) : '';
   const initials = getEmailInitials(effectiveEmail, effectiveName);
 
   // Close dropdowns when clicking outside

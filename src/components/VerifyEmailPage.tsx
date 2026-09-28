@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle, ArrowRight, ShieldCheck, Mail, RefreshCw, ShoppingCart } from 'lucide-react';
-import { verifyEmailByToken } from '../lib/firebase';
+import { verifyEmailByToken, validateStudentVerificationStatus } from '../lib/firebase';
 import { Course } from '../types';
 import { addCourseToCart } from '../utils/cartUtils';
 import { formatNameFromEmail, formatStudentDisplayName } from '../utils/userUtils';
@@ -39,29 +39,36 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
     if (email) setVerifiedEmail(email);
 
     if (!token) {
-      // Check if user is already verified in storage
-      if (typeof window !== 'undefined' && localStorage.getItem('lafole_email_verified') === 'true') {
-        const storedEmail = localStorage.getItem('lafole_verified_email') || email;
-        const storedName = formatStudentDisplayName(localStorage.getItem('lafole_verified_fullname') || '', storedEmail);
-        if (storedEmail) setVerifiedEmail(storedEmail);
-        setStatus('already_verified');
-        setMessage('Your email address has already been verified and your student account is active.');
-        
-        let targetCourseId = '';
-        const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-        if (lastEnroll) {
-          try {
-            const parsed = JSON.parse(lastEnroll);
-            if (parsed.courseId) {
-              targetCourseId = parsed.courseId;
-              setCourseId(parsed.courseId);
-              setEnrolledCourseTitle(parsed.courseTitle || '');
+      const emailToCheck = email || (typeof window !== 'undefined' ? localStorage.getItem('lafole_verified_email') : '') || '';
+      if (emailToCheck) {
+        validateStudentVerificationStatus(emailToCheck).then((dbStatus) => {
+          if (dbStatus.verified) {
+            const studentName = formatStudentDisplayName(dbStatus.fullName, emailToCheck);
+            setVerifiedEmail(emailToCheck);
+            setStatus('already_verified');
+            setMessage('Your email address is verified in the database and your student account is active.');
+            
+            let targetCourseId = '';
+            const lastEnroll = typeof window !== 'undefined' ? localStorage.getItem('last_lafole_enrollment') : null;
+            if (lastEnroll) {
+              try {
+                const parsed = JSON.parse(lastEnroll);
+                if (parsed.courseId) {
+                  targetCourseId = parsed.courseId;
+                  setCourseId(parsed.courseId);
+                  setEnrolledCourseTitle(parsed.courseTitle || '');
+                }
+              } catch {}
             }
-          } catch {}
-        }
-        if (storedEmail) {
-          onEmailVerified?.(storedEmail, storedName, targetCourseId);
-        }
+            onEmailVerified?.(emailToCheck, studentName, targetCourseId);
+          } else {
+            setStatus('error');
+            setMessage('No verification token provided in URL. Please use the verification link sent to your email.');
+          }
+        }).catch(() => {
+          setStatus('error');
+          setMessage('No verification token provided in URL. You can verify using your email below.');
+        });
         return;
       }
       setStatus('error');

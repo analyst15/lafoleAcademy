@@ -15,8 +15,7 @@ import {
   Search,
   X,
   Play,
-  RefreshCw,
-  ShieldAlert
+  ShieldCheck
 } from 'lucide-react';
 import { Course, Lesson, LessonProgress, CourseProgress, QuizAttempt, StudentProfile, CartItem } from './types';
 import { INITIAL_COURSES, INITIAL_STUDENT_PROFILE } from './data/courses';
@@ -53,7 +52,8 @@ import {
   getStudentEnrolledCourseIds, 
   getStudentProfile, 
   updateStudentProfile,
-  checkStudentVerificationInDatabase 
+  validateStudentVerificationStatus,
+  signOutStudent
 } from './lib/firebase';
 import { formatStudentDisplayName } from './utils/userUtils';
 
@@ -152,19 +152,7 @@ export default function App() {
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => initialRoute.dashboardTab);
 
   // Active view: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard'
-  const [activeView, setActiveView] = useState<AppView>(() => {
-    // If user loaded on /dashboard directly, make sure an email exists, otherwise start on login
-    if (initialRoute.view === 'dashboard') {
-      if (typeof window !== 'undefined') {
-        const email = localStorage.getItem('lafole_verified_email');
-        const isVer = localStorage.getItem('lafole_email_verified') === 'true';
-        if (!email || !isVer) {
-          return 'login';
-        }
-      }
-    }
-    return initialRoute.view;
-  });
+  const [activeView, setActiveView] = useState<AppView>(() => initialRoute.view);
 
   const [isCheckoutMode, setIsCheckoutMode] = useState<boolean>(() => initialRoute.isCheckout);
 
@@ -206,15 +194,18 @@ export default function App() {
   const [isCertificateModalOpen, setIsCertificateModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
 
-  // Authentication check loading state when verifying with Firestore database
-  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(false);
-
   // Session inactivity timeout: 15 minutes of inactivity for account safety
   const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+
+  // Validation in progress state (checking database for verified flag)
+  const [isValidatingAuth, setIsValidatingAuth] = useState<boolean>(false);
 
   // Email verification session state (triggers post-verification navbar with initials & My Dashboard)
   const [isEmailVerified, setIsEmailVerified] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
+      const isVerified = localStorage.getItem('lafole_email_verified') === 'true';
+      if (!isVerified) return false;
+
       const lastActiveStr = localStorage.getItem('lafole_last_active_time');
       if (lastActiveStr) {
         const lastActive = parseInt(lastActiveStr, 10);
@@ -223,52 +214,95 @@ export default function App() {
           localStorage.removeItem('lafole_email_verified');
           localStorage.removeItem('lafole_verified_email');
           localStorage.removeItem('lafole_verified_fullname');
+          localStorage.removeItem('lafole_auth_user');
           localStorage.removeItem('lafole_cart_items');
           localStorage.removeItem('lafole_last_active_time');
           return false;
         }
       }
-      if (localStorage.getItem('lafole_email_verified') === 'true') return true;
-      const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-      if (lastEnroll) {
-        try {
-          const parsed = JSON.parse(lastEnroll);
-          if (parsed.emailVerified) return true;
-        } catch {}
-      }
+      return true;
     }
     return false;
   });
 
   const [verifiedEmail, setVerifiedEmail] = useState<string>(() => {
     if (typeof window !== 'undefined') {
+      const isVerified = localStorage.getItem('lafole_email_verified') === 'true';
+      if (!isVerified) return '';
       const email = localStorage.getItem('lafole_verified_email');
       if (email) return email;
-      const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-      if (lastEnroll) {
-        try {
-          const parsed = JSON.parse(lastEnroll);
-          if (parsed.email) return parsed.email;
-        } catch {}
-      }
     }
     return '';
   });
 
   const [verifiedFullName, setVerifiedFullName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
+      const isVerified = localStorage.getItem('lafole_email_verified') === 'true';
+      if (!isVerified) return '';
       const name = localStorage.getItem('lafole_verified_fullname');
       if (name && !['verified student', 'nerd ninja'].includes(name.toLowerCase())) return name;
-      const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-      if (lastEnroll) {
-        try {
-          const parsed = JSON.parse(lastEnroll);
-          if (parsed.fullName && !['verified student', 'nerd ninja'].includes(parsed.fullName.toLowerCase())) return parsed.fullName;
-        } catch {}
-      }
     }
     return '';
   });
+
+  // CRITICAL DATABASE VALIDATION: Validate student's verified status directly against Firestore
+  // Only runs when the user has an active authenticated session (isEmailVerified)
+  // Never re-authenticates a signed out user on page refresh
+  useEffect(() => {
+    // If the student is signed out, ensure no background auto-sign-in happens
+    const isActivelyLoggedIn = typeof window !== 'undefined' && localStorage.getItem('lafole_email_verified') === 'true';
+    if (!isEmailVerified || !isActivelyLoggedIn) {
+      return;
+    }
+
+    const candidateEmail = (
+      verifiedEmail || 
+      (typeof window !== 'undefined' ? localStorage.getItem('lafole_verified_email') : '') || 
+      ''
+    ).trim().toLowerCase();
+
+    if (!candidateEmail) {
+      setIsEmailVerified(false);
+      return;
+    }
+
+    let isMounted = true;
+    validateStudentVerificationStatus(candidateEmail).then((res) => {
+      if (!isMounted) return;
+      if (res.verified) {
+        setIsEmailVerified(true);
+        if (res.fullName && !['verified student', 'nerd ninja'].includes(res.fullName.toLowerCase())) {
+          setVerifiedFullName(res.fullName);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('lafole_verified_fullname', res.fullName);
+          }
+        }
+      } else {
+        // Database confirms user is NOT verified! Revoke false local storage state
+        setIsEmailVerified(false);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('lafole_email_verified');
+          localStorage.removeItem('lafole_verified_email');
+          localStorage.removeItem('lafole_verified_fullname');
+          localStorage.removeItem('lafole_auth_user');
+          const lastEnroll = localStorage.getItem('last_lafole_enrollment');
+          if (lastEnroll) {
+            try {
+              const parsed = JSON.parse(lastEnroll);
+              parsed.emailVerified = false;
+              localStorage.setItem('last_lafole_enrollment', JSON.stringify(parsed));
+            } catch {}
+          }
+        }
+      }
+    }).catch((err) => {
+      console.warn("Database status verification check error on mount:", err);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [verifiedEmail, isEmailVerified]);
 
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -298,62 +332,14 @@ export default function App() {
   }, [courses, enrolledCourseIds]);
 
   // Sync confirmed course enrollments & authentic student profile from Firestore for logged-in student
-  // and validate verification status strictly against the Firestore database (not relying solely on local storage state)
   useEffect(() => {
-    const candidateEmail = (
-      verifiedEmail || 
-      (typeof window !== 'undefined' ? localStorage.getItem('lafole_verified_email') : '') || 
-      ''
-    ).trim().toLowerCase();
-
-    if (!candidateEmail) {
-      if (isEmailVerified) {
-        setIsEmailVerified(false);
-      }
+    if (!isEmailVerified || !verifiedEmail) {
       return;
     }
-
     let isMounted = true;
-
-    // Strictly validate student verification status against the Firestore database
-    checkStudentVerificationInDatabase(candidateEmail)
-      .then((res) => {
-        if (!isMounted) return;
-        if (res.isVerified) {
-          setIsEmailVerified(true);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('lafole_email_verified', 'true');
-          }
-          if (res.fullName && !['verified student', 'nerd ninja'].includes(res.fullName.toLowerCase())) {
-            const clean = formatStudentDisplayName(res.fullName, candidateEmail);
-            setVerifiedFullName(clean);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('lafole_verified_fullname', clean);
-            }
-          }
-        } else {
-          // DATABASE REJECTS: The student account is NOT verified in the database!
-          // Invalidate local storage verification state
-          setIsEmailVerified(false);
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('lafole_email_verified');
-          }
-          // If currently attempting to view dashboard while unverified in database, eject to login
-          if (activeView === 'dashboard') {
-            showToast('Verification required: Your email has not been verified in the database. Please verify your email first.', 'info');
-            setActiveView('login');
-            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-              window.history.pushState({ view: 'login' }, '', '/login');
-            }
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn("Could not validate student verification status against database:", err);
-      });
-
+    
     // 1. Sync student profile (real name, phone, etc.)
-    getStudentProfile(candidateEmail)
+    getStudentProfile(verifiedEmail)
       .then((profile) => {
         if (!isMounted || !profile) return;
         if (profile.fullName && !['verified student', 'nerd ninja'].includes(profile.fullName.toLowerCase())) {
@@ -368,7 +354,7 @@ export default function App() {
       });
 
     // 2. Sync enrolled course IDs
-    getStudentEnrolledCourseIds(candidateEmail)
+    getStudentEnrolledCourseIds(verifiedEmail)
       .then((ids) => {
         if (!isMounted) return;
         setEnrolledCourseIds((prev) => {
@@ -382,11 +368,10 @@ export default function App() {
       .catch((err) => {
         console.warn("Could not sync student enrolled courses from Firestore:", err);
       });
-
     return () => {
       isMounted = false;
     };
-  }, [verifiedEmail, activeView]);
+  }, [isEmailVerified, verifiedEmail]);
 
   // Unique course page navigation with dedicated URL
   const navigateToCourse = useCallback((course: Course) => {
@@ -428,93 +413,103 @@ export default function App() {
   }, [navigateToCart]);
 
   // Dedicated Dashboard Navigation supporting /dashboard and all subroutes
-  // Validates 'verified' flag against the Firestore database before allowing access
-  const navigateToDashboard = useCallback(async (tab: DashboardTab = 'dashboard', explicitEmail?: string) => {
-    const targetEmail = (
-      explicitEmail || 
+  // Validates the student's status with the Firestore database rather than relying solely on local storage state
+  const navigateToDashboard = useCallback((tab: DashboardTab = 'dashboard', overrideEmail?: string) => {
+    const emailToValidate = (
+      overrideEmail || 
       verifiedEmail || 
       (typeof window !== 'undefined' ? localStorage.getItem('lafole_verified_email') : '') || 
       ''
     ).trim().toLowerCase();
 
-    // 1. If no email is present, redirect to login
-    if (!targetEmail) {
-      showToast('Please sign in or verify your email to access the dashboard.', 'info');
+    if (!emailToValidate) {
+      setIsEmailVerified(false);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('lafole_email_verified');
+      }
+      showToast('Please sign in or verify your email to access the student dashboard.', 'info');
       setActiveView('login');
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      if (typeof window !== 'undefined') {
         window.history.pushState({ view: 'login' }, '', '/login');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       return;
     }
 
-    // 2. Validate against Firestore database
-    setIsCheckingAuth(true);
-    try {
-      const checkRes = await checkStudentVerificationInDatabase(targetEmail);
-      if (checkRes.isVerified) {
-        setIsEmailVerified(true);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('lafole_email_verified', 'true');
-          localStorage.setItem('lafole_last_active_time', String(Date.now()));
-          localStorage.setItem('lafole_verified_email', targetEmail);
-        }
-        if (checkRes.fullName && !['verified student', 'nerd ninja'].includes(checkRes.fullName.toLowerCase())) {
-          const clean = formatStudentDisplayName(checkRes.fullName, targetEmail);
-          setVerifiedFullName(clean);
+    setIsValidatingAuth(true);
+
+    validateStudentVerificationStatus(emailToValidate)
+      .then((res) => {
+        if (res.verified) {
+          setIsEmailVerified(true);
+          setVerifiedEmail(emailToValidate);
+          if (res.fullName && !['verified student', 'nerd ninja'].includes(res.fullName.toLowerCase())) {
+            setVerifiedFullName(res.fullName);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('lafole_verified_fullname', res.fullName);
+            }
+          }
           if (typeof window !== 'undefined') {
-            localStorage.setItem('lafole_verified_fullname', clean);
+            localStorage.setItem('lafole_email_verified', 'true');
+            localStorage.setItem('lafole_verified_email', emailToValidate);
+            localStorage.setItem('lafole_last_active_time', String(Date.now()));
+          }
+
+          setDashboardTab(tab);
+          setActiveView('dashboard');
+          if (typeof window !== 'undefined') {
+            const tabPaths: Record<DashboardTab, string> = {
+              'dashboard': '/dashboard',
+              'mylearning': '/dashboard/mylearning',
+              'learning-path': '/dashboard/learning-path',
+              'certificates': '/dashboard/certificates',
+              'books': '/dashboard/books',
+              'orders': '/dashboard/orders',
+              'cyber-labs': '/dashboard/cyber-labs',
+              'networking-labs': '/dashboard/networking-labs',
+              'payments': '/dashboard/payments',
+              'downloads': '/dashboard/downloads',
+              'settings': '/dashboard/settings',
+              'help': '/dashboard/help'
+            };
+            const targetPath = tabPaths[tab] || '/dashboard';
+            if (window.location.pathname !== targetPath) {
+              window.history.pushState({ view: 'dashboard', tab }, '', targetPath);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } else {
+          // Rejection from database: user is NOT verified!
+          setIsEmailVerified(false);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('lafole_email_verified');
+            const lastEnroll = localStorage.getItem('last_lafole_enrollment');
+            if (lastEnroll) {
+              try {
+                const parsed = JSON.parse(lastEnroll);
+                parsed.emailVerified = false;
+                localStorage.setItem('last_lafole_enrollment', JSON.stringify(parsed));
+              } catch {}
+            }
+          }
+          showToast('Verification check: Your account is not verified in our database yet. Please click the verification link sent to your email.', 'info');
+          setActiveView('login');
+          if (typeof window !== 'undefined') {
+            window.history.pushState({ view: 'login' }, '', '/login');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         }
-
-        setDashboardTab(tab);
-        setActiveView('dashboard');
-
-        if (typeof window !== 'undefined') {
-          const tabPaths: Record<DashboardTab, string> = {
-            'dashboard': '/dashboard',
-            'mylearning': '/dashboard/mylearning',
-            'learning-path': '/dashboard/learning-path',
-            'certificates': '/dashboard/certificates',
-            'books': '/dashboard/books',
-            'orders': '/dashboard/orders',
-            'cyber-labs': '/dashboard/cyber-labs',
-            'networking-labs': '/dashboard/networking-labs',
-            'payments': '/dashboard/payments',
-            'downloads': '/dashboard/downloads',
-            'settings': '/dashboard/settings',
-            'help': '/dashboard/help'
-          };
-          const targetPath = tabPaths[tab] || '/dashboard';
-          if (window.location.pathname !== targetPath) {
-            window.history.pushState({ view: 'dashboard', tab }, '', targetPath);
-          }
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-      } else {
-        // Database check failed: student is unverified in database
+      })
+      .catch((err) => {
+        console.warn("Could not validate status with database:", err);
         setIsEmailVerified(false);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('lafole_email_verified');
-        }
-        showToast('Your email has not been verified yet in our system. Please check your inbox and verify before accessing the dashboard.', 'info');
+        showToast('Could not validate student status with database. Please try signing in.', 'info');
         setActiveView('login');
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.history.pushState({ view: 'login' }, '', '/login');
-        }
-      }
-    } catch (err) {
-      console.warn("Could not check verification against database:", err);
-      if (isEmailVerified) {
-        setDashboardTab(tab);
-        setActiveView('dashboard');
-      } else {
-        showToast('Please sign in or verify your email to access the dashboard.', 'info');
-        setActiveView('login');
-      }
-    } finally {
-      setIsCheckingAuth(false);
-    }
-  }, [verifiedEmail, isEmailVerified]);
+      })
+      .finally(() => {
+        setIsValidatingAuth(false);
+      });
+  }, [verifiedEmail]);
 
   const navigateTo = useCallback((view: AppView) => {
     if (view === 'cart') {
@@ -555,51 +550,17 @@ export default function App() {
 
   // Handle direct URL loading, hash changes, and browser forward/backward navigation
   useEffect(() => {
-    const handleRouteSync = async () => {
+    const handleRouteSync = () => {
       const current = parseRouteFromLocation();
-
-      // If route is dashboard, strictly validate against database before granting view
-      if (current.view === 'dashboard') {
-        const storedEmail = (typeof window !== 'undefined' ? localStorage.getItem('lafole_verified_email') : '') || verifiedEmail;
-        if (!storedEmail) {
-          showToast('Please sign in or verify your email to access the student dashboard.', 'info');
-          setActiveView('login');
-          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-            window.history.replaceState({ view: 'login' }, '', '/login');
-          }
-          return;
-        }
-
-        setIsCheckingAuth(true);
-        try {
-          const res = await checkStudentVerificationInDatabase(storedEmail);
-          if (res.isVerified) {
-            setIsEmailVerified(true);
-            setActiveView('dashboard');
-            setDashboardTab(current.dashboardTab);
-          } else {
-            setIsEmailVerified(false);
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('lafole_email_verified');
-            }
-            showToast('Email verification required. Please verify your email address to access your dashboard.', 'info');
-            setActiveView('login');
-            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-              window.history.replaceState({ view: 'login' }, '', '/login');
-            }
-          }
-        } catch {
-          setActiveView('dashboard');
-          setDashboardTab(current.dashboardTab);
-        } finally {
-          setIsCheckingAuth(false);
-        }
-        return;
-      }
-
-      setActiveView(current.view);
       setDashboardTab(current.dashboardTab);
       setIsCheckoutMode(current.isCheckout);
+
+      if (current.view === 'dashboard') {
+        // Validate with database rather than assuming local state
+        navigateToDashboard(current.dashboardTab);
+      } else {
+        setActiveView(current.view);
+      }
 
       if (current.courseParamId) {
         const found = courses.find(c => 
@@ -621,7 +582,14 @@ export default function App() {
       window.removeEventListener('popstate', handleRouteSync);
       window.removeEventListener('hashchange', handleRouteSync);
     };
-  }, [courses, verifiedEmail]);
+  }, [courses, navigateToDashboard]);
+
+  // If initial route is dashboard, validate against database immediately on mount
+  useEffect(() => {
+    if (initialRoute.view === 'dashboard') {
+      navigateToDashboard(initialRoute.dashboardTab);
+    }
+  }, [initialRoute, navigateToDashboard]);
 
   // Sync dark mode class with root and localStorage
   useEffect(() => {
@@ -675,23 +643,40 @@ export default function App() {
     }, 4500);
   };
 
-  // Email verification success handler (activates post-verification navbar with initials & adds course to cart)
+  // Email verification success handler: validates student's status with Firestore database
   const handleEmailVerificationSuccess = useCallback((email: string, fullName?: string, verifiedCourseId?: string) => {
-    setIsEmailVerified(true);
-    const cleanDisplayName = formatStudentDisplayName(fullName, email);
-    if (email) setVerifiedEmail(email);
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanDisplayName = formatStudentDisplayName(fullName, cleanEmail);
+    if (cleanEmail) setVerifiedEmail(cleanEmail);
     if (cleanDisplayName) setVerifiedFullName(cleanDisplayName);
+
+    // Validate against database to guarantee persistence and verified status
+    if (cleanEmail) {
+      validateStudentVerificationStatus(cleanEmail).then((res) => {
+        if (res.verified) {
+          setIsEmailVerified(true);
+          if (res.fullName && !['verified student', 'nerd ninja'].includes(res.fullName.toLowerCase())) {
+            setVerifiedFullName(res.fullName);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('lafole_verified_fullname', res.fullName);
+            }
+          }
+        }
+      }).catch(() => {});
+    }
+
+    setIsEmailVerified(true);
     if (typeof window !== 'undefined') {
       localStorage.setItem('lafole_email_verified', 'true');
       localStorage.setItem('lafole_last_active_time', String(Date.now()));
-      if (email) localStorage.setItem('lafole_verified_email', email);
+      if (cleanEmail) localStorage.setItem('lafole_verified_email', cleanEmail);
       if (cleanDisplayName) localStorage.setItem('lafole_verified_fullname', cleanDisplayName);
       const lastEnroll = localStorage.getItem('last_lafole_enrollment');
       if (lastEnroll) {
         try {
           const parsed = JSON.parse(lastEnroll);
           parsed.emailVerified = true;
-          if (email) parsed.email = email;
+          if (cleanEmail) parsed.email = cleanEmail;
           if (cleanDisplayName) parsed.fullName = cleanDisplayName;
           localStorage.setItem('last_lafole_enrollment', JSON.stringify(parsed));
         } catch {}
@@ -758,18 +743,14 @@ export default function App() {
       localStorage.removeItem('lafole_email_verified');
       localStorage.removeItem('lafole_verified_email');
       localStorage.removeItem('lafole_verified_fullname');
+      localStorage.removeItem('lafole_auth_user');
       localStorage.removeItem('lafole_enrolled_course_ids');
       localStorage.removeItem('lafole_cart_items');
       localStorage.removeItem('lafole_last_active_time');
-      const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-      if (lastEnroll) {
-        try {
-          const parsed = JSON.parse(lastEnroll);
-          parsed.emailVerified = false;
-          localStorage.setItem('last_lafole_enrollment', JSON.stringify(parsed));
-        } catch {}
-      }
+      localStorage.removeItem('last_lafole_enrollment');
+      sessionStorage.clear();
     }
+    signOutStudent().catch(() => {});
     if (activeView === 'dashboard' || activeView === 'instructor') {
       navigateTo('home');
     }
@@ -1017,6 +998,21 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2 px-4 py-3 bg-slate-950 text-white rounded-2xl shadow-2xl border border-slate-800 animate-slideUp">
           <Sparkles className="w-4 h-4 text-[#22C55E] flex-shrink-0" />
           <span className="text-xs sm:text-sm font-medium">{toastMessage.text}</span>
+        </div>
+      )}
+
+      {/* Validating Student Status Loading Overlay */}
+      {isValidatingAuth && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl space-y-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center mx-auto text-[#22C55E]">
+              <ShieldCheck className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Validating Account Verification</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Verifying your status with the database before opening your dashboard...</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1575,7 +1571,7 @@ export default function App() {
       )}
 
       {/* View: Dedicated /dashboard Student Dashboard with Sub-Routes matching screenshots */}
-      {activeView === 'dashboard' && (
+      {activeView === 'dashboard' && isEmailVerified && (
         <DashboardLayout
           currentTab={dashboardTab}
           onTabChange={(tab) => navigateToDashboard(tab)}
@@ -1631,6 +1627,37 @@ export default function App() {
           }}
           showToast={(text, type) => showToast(text, type === 'error' ? 'info' : 'success')}
         />
+      )}
+
+      {/* Access Denied Guard if accessing /dashboard while unverified in database */}
+      {activeView === 'dashboard' && !isEmailVerified && !isValidatingAuth && (
+        <div className="flex-1 flex items-center justify-center p-6 min-h-[60vh]">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center shadow-lg space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto text-amber-500">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Email Verification Required</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Access to your student dashboard requires a verified student account. Please verify your email or sign in to continue.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                onClick={() => navigateTo('login')}
+                className="flex-1 py-2.5 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => navigateTo('home')}
+                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* View 3: Automated Student Progress Tracking Dashboard */}
