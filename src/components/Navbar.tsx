@@ -898,10 +898,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-    {/* Alert Bar just below the header (hidden on dashboard, catalog, diplomas, books, course-details, checkout, cart, and contact pages) */}
-    {activeView !== 'dashboard' && activeView !== 'catalog' && activeView !== 'diplomas' && activeView !== 'books' && activeView !== 'course-details' && activeView !== 'checkout' && activeView !== 'cart' && activeView !== 'contact' && (
+    {/* Alert Bar temporarily commented out */}
+    {/* {activeView !== 'dashboard' && activeView !== 'catalog' && activeView !== 'diplomas' && activeView !== 'books' && activeView !== 'course-details' && activeView !== 'checkout' && activeView !== 'cart' && activeView !== 'contact' && (
       <PromoAlertBar onShopNow={onShopNow} />
-    )}
+    )} */}
   </header>
   );
 };
