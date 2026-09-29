@@ -33,7 +33,7 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10">
         
         {/* Section Header: "Latest Courses." and "Open full catalog →" pill */}
-        <div className="flex items-center justify-between pb-8 sm:pb-10 border-b border-slate-200/60 dark:border-slate-800/60 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 sm:pb-10 border-b border-slate-200/60 dark:border-slate-800/60 gap-3 sm:gap-4">
           <div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
               Latest Courses.
@@ -42,7 +42,7 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
 
           <button
             onClick={onOpenFullCatalog}
-            className="group flex items-center space-x-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-semibold hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 shadow-2xs hover:shadow-sm transition-all duration-200 cursor-pointer flex-shrink-0"
+            className="group flex items-center space-x-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-semibold hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 shadow-2xs hover:shadow-sm transition-all duration-200 cursor-pointer self-start sm:self-auto flex-shrink-0"
           >
             <span>Open full catalog</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -50,7 +50,7 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
         </div>
 
         {/* 4-Column Responsive Grid (2 rows x 4 columns = 8 cards) */}
-        <div className="pt-8 sm:pt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-7">
+        <div className="pt-8 sm:pt-10 w-full min-w-0 max-w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 lg:gap-7">
           {displayCourses.map((course, idx) => {
             const price = course.price ?? 40;
             const originalPrice = course.originalPrice ?? price * 2;
@@ -61,7 +61,7 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
               <div
                 key={course.id}
                 onClick={() => onSelectCourse(course)}
-                className="group flex flex-col justify-between rounded-2xl bg-white dark:bg-[#111622] border border-slate-200/90 dark:border-slate-800/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-emerald-500/50 dark:hover:border-emerald-500/40 transition-all duration-300 cursor-pointer"
+                className="group flex flex-col justify-between rounded-2xl bg-white dark:bg-[#111622] border border-slate-200/90 dark:border-slate-800/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-emerald-500/50 dark:hover:border-emerald-500/40 transition-all duration-300 cursor-pointer w-full min-w-0 max-w-full"
               >
                 {/* Top Image / Banner Area */}
                 <div>

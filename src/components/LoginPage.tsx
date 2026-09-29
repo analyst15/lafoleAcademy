@@ -506,9 +506,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <p>
                 We've sent a secure verification email. Please check your inbox and <strong>spam/junk folder</strong>.
               </p>
-              <p className="text-slate-600 dark:text-slate-400 text-xs">
-                To prevent unauthorized accounts and protect student security, you must click <strong>Verify My Email Address</strong> in the email to activate your account.
-              </p>
             </div>
 
             {/* Actions */}

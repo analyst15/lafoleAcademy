@@ -144,7 +144,7 @@ export const DiplomasPage: React.FC<DiplomasPageProps> = ({
               </p>
 
               {/* Key Metrics / Stats */}
-              <div className="pt-6 sm:pt-8 flex items-baseline space-x-10 sm:space-x-14">
+              <div className="pt-6 sm:pt-8 flex flex-wrap items-baseline gap-6 sm:gap-14">
                 <div>
                   <div className="text-3xl sm:text-4xl font-extrabold text-[#111111] dark:text-white tracking-tight">
                     8

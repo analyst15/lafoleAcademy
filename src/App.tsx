@@ -36,6 +36,7 @@ import { DiplomaProgramsSection } from './components/DiplomaProgramsSection';
 import { CatalogPage } from './components/CatalogPage';
 import { DiplomasPage } from './components/DiplomasPage';
 import { BooksPage } from './components/BooksPage';
+import { ContactPage } from './components/ContactPage';
 import { CourseDetailsPage } from './components/CourseDetailsPage';
 import { CheckoutPage } from './components/CheckoutPage';
 import { VerifyEmailPage } from './components/VerifyEmailPage';
@@ -57,7 +58,7 @@ import {
 } from './lib/firebase';
 import { formatStudentDisplayName } from './utils/userUtils';
 
-export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard';
+export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact';
 
 export function parseRouteFromLocation(): {
   view: AppView;
@@ -123,6 +124,8 @@ export function parseRouteFromLocation(): {
     courseParamId = effectiveRoute.replace('/course/', '').trim();
   } else if (effectiveRoute === '/verify-email' || effectiveRoute.startsWith('/verify-email') || effectiveRoute.startsWith('/verify')) {
     view = 'verify-email';
+  } else if (effectiveRoute === '/contact' || effectiveRoute.startsWith('/contact')) {
+    view = 'contact';
   }
 
   return { view, dashboardTab, isCheckout, courseParamId };
@@ -540,6 +543,8 @@ export default function App() {
         ? '/verify-email'
         : view === 'login'
         ? '/login'
+        : view === 'contact'
+        ? '/contact'
         : '/';
       if (window.location.pathname !== targetPath) {
         window.history.pushState({ view }, '', targetPath);
@@ -683,28 +688,8 @@ export default function App() {
       }
     }
 
-    // Automatically add the verified course to cart
-    let courseToEnroll: Course = activeCourse;
-    if (verifiedCourseId) {
-      const matched = courses.find(c => c.id === verifiedCourseId);
-      if (matched) courseToEnroll = matched;
-    } else if (typeof window !== 'undefined') {
-      const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-      if (lastEnroll) {
-        try {
-          const parsed = JSON.parse(lastEnroll);
-          if (parsed.courseId) {
-            const matched = courses.find(c => c.id === parsed.courseId);
-            if (matched) courseToEnroll = matched;
-          }
-        } catch {}
-      }
-    }
-    const updatedCart = addCourseToCart(courseToEnroll);
-    setCartItems(updatedCart);
-
-    showToast(`🎉 Email verified! "${courseToEnroll.title}" added to your cart.`, 'success');
-  }, [activeCourse, courses]);
+    showToast(`🎉 Email verified! Welcome aboard.`, 'success');
+  }, []);
 
   const handleRemoveFromCart = useCallback((courseId: string) => {
     const updated = removeCourseFromCart(courseId);
@@ -1047,7 +1032,7 @@ export default function App() {
 
       {/* View 1: Clean Slate Home View (Featuring Exact Reference Hero & Lafole Logo) */}
       {activeView === 'home' && (
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col w-full max-w-full min-w-0 overflow-x-hidden">
           {/* Exact Reference Hero Component */}
           <HeroSection
             onBrowseCourses={() => navigateTo('catalog')}
@@ -1110,6 +1095,9 @@ export default function App() {
                 </button>
                 <button onClick={() => navigateTo('instructor')} className="hover:text-[#22C55E]">
                   Instructor Studio
+                </button>
+                <button onClick={() => navigateTo('contact')} className="hover:text-[#22C55E]">
+                  Contact
                 </button>
                 <button onClick={handleResetProgress} className="hover:text-amber-500">
                   Reset Demo State
@@ -1358,8 +1346,47 @@ export default function App() {
                 <button onClick={() => navigateTo('instructor')} className="hover:text-[#22C55E]">
                   Instructor Studio
                 </button>
+                <button onClick={() => navigateTo('contact')} className="hover:text-[#22C55E]">
+                  Contact
+                </button>
                 <button onClick={handleResetProgress} className="hover:text-amber-500">
                   Reset Demo State
+                </button>
+              </div>
+            </div>
+          </footer>
+        </div>
+      )}
+
+      {/* View: Dedicated /contact Page (Matches reference UI screenshot) */}
+      {activeView === 'contact' && (
+        <div className="flex-1 flex flex-col">
+          <ContactPage
+            onBackToHome={() => navigateTo('home')}
+            onExploreCourses={() => navigateTo('catalog')}
+          />
+          <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
+            <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
+              <div className="flex items-center space-x-3">
+                <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
+                <span>•</span>
+                <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
+                  Home
+                </button>
+                <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
+                  Course Catalog
+                </button>
+                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
+                  8 Diploma Tracks
+                </button>
+                <button onClick={() => navigateTo('books')} className="hover:text-[#22C55E]">
+                  Books &amp; Manuals
+                </button>
+                <button onClick={() => navigateTo('contact')} className="hover:text-[#22C55E] text-[#22C55E] font-semibold">
+                  Contact
                 </button>
               </div>
             </div>

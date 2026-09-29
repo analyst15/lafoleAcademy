@@ -234,7 +234,7 @@ export const DashboardHelpCenter: React.FC<DashboardHelpCenterProps> = ({
 
             {/* WhatsApp */}
             <a
-              href="https://wa.me/2526192909900"
+              href="https://wa.me/252619290900"
               target="_blank"
               rel="noreferrer"
               className="p-4.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-[#22C55E] flex items-center justify-between group transition-all shadow-2xs block"
@@ -244,7 +244,7 @@ export const DashboardHelpCenter: React.FC<DashboardHelpCenterProps> = ({
                   WHATSAPP
                 </div>
                 <div className="text-[14px] font-medium text-slate-900 dark:text-white font-mono">
-                  +252 61 92909900
+                  +252 61 9290900
                 </div>
               </div>
               <ArrowRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-[#22C55E] group-hover:translate-x-1 transition-all" />
@@ -252,7 +252,7 @@ export const DashboardHelpCenter: React.FC<DashboardHelpCenterProps> = ({
 
             {/* Call Us */}
             <a
-              href="tel:+2526192909900"
+              href="tel:+252619290900"
               className="p-4.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-[#22C55E] flex items-center justify-between group transition-all shadow-2xs block"
             >
               <div className="space-y-1">
@@ -260,7 +260,7 @@ export const DashboardHelpCenter: React.FC<DashboardHelpCenterProps> = ({
                   CALL US
                 </div>
                 <div className="text-[14px] font-medium text-slate-900 dark:text-white font-mono">
-                  +252 61 92909900
+                  +252 61 9290900
                 </div>
               </div>
               <ArrowRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-[#22C55E] group-hover:translate-x-1 transition-all" />

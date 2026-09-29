@@ -109,7 +109,7 @@ export const DiplomaProgramsSection: React.FC<DiplomaProgramsSectionProps> = ({
           {/* Featured Card (Left Side, 5 columns) */}
           <div 
             onClick={() => onSelectTrack && onSelectTrack('IT Support Pro Diploma')}
-            className="lg:col-span-5 group rounded-3xl bg-white dark:bg-[#111622] border border-slate-200/90 dark:border-slate-800 p-7 sm:p-9 shadow-xs hover:shadow-xl hover:border-emerald-500/40 dark:hover:border-emerald-500/30 transition-all duration-300 flex flex-col justify-between cursor-pointer relative overflow-hidden"
+            className="lg:col-span-5 group rounded-3xl bg-white dark:bg-[#111622] border border-slate-200/90 dark:border-slate-800 p-5 sm:p-9 shadow-xs hover:shadow-xl hover:border-emerald-500/40 dark:hover:border-emerald-500/30 transition-all duration-300 flex flex-col justify-between cursor-pointer relative overflow-hidden"
           >
             {/* Subtle background glow effect */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />

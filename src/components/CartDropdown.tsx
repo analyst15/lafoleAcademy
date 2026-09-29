@@ -64,7 +64,7 @@ export const CartDropdown: React.FC<CartDropdownProps> = ({
       id="cart-dropdown-popover"
       role="dialog"
       aria-label="Shopping Cart Menu"
-      className="absolute right-0 top-full mt-2.5 w-[340px] sm:w-[370px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-5 z-50 animate-fadeIn select-none"
+      className="absolute right-0 top-full mt-2.5 w-[calc(100vw-32px)] max-w-[360px] sm:w-[370px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 z-50 animate-fadeIn select-none"
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">

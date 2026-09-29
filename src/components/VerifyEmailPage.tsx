@@ -100,24 +100,9 @@ export const VerifyEmailPage: React.FC<VerifyEmailPageProps> = ({
         // First-time successful verification
         setStatus('success');
         setMessage(res.message);
-        if (resolvedCourseId) {
+        if (resolvedCourseId && resolvedCourseId !== 'general-student') {
           setCourseId(resolvedCourseId);
           setEnrolledCourseTitle(res.record?.courseTitle || '');
-          const matched = courses.find(c => c.id === resolvedCourseId);
-          if (matched) {
-            addCourseToCart(matched);
-          } else if (res.record?.courseTitle) {
-            addCourseToCart({
-              id: resolvedCourseId,
-              title: res.record.courseTitle,
-              price: res.record.amount || 20.0
-            });
-          }
-        } else {
-          // Add default active course
-          if (courses.length > 0) {
-            addCourseToCart(courses[0]);
-          }
         }
         onEmailVerified?.(resolvedEmail, resolvedName, resolvedCourseId);
       } else {

@@ -15,7 +15,12 @@ import {
   GraduationCap,
   CheckCircle2,
   LogOut,
-  UserCheck
+  UserCheck,
+  Menu,
+  X,
+  Home,
+  Phone,
+  Mail
 } from 'lucide-react';
 import { Course, CourseProgress, StudentProfile, CartItem } from '../types';
 import { PromoAlertBar } from './PromoAlertBar';
@@ -23,8 +28,8 @@ import { getEmailInitials, formatStudentDisplayName } from '../utils/userUtils';
 import { CartDropdown } from './CartDropdown';
 
 interface NavbarProps {
-  activeView: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard';
-  setActiveView: (view: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard') => void;
+  activeView: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact';
+  setActiveView: (view: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact') => void;
   onNavigateToDashboard?: () => void;
   courses: Course[];
   activeCourse: Course;
@@ -78,6 +83,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [resourcesDropdownOpen, setResourcesDropdownOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Auto-close mobile menu on view change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [activeView]);
 
   const learnRef = useRef<HTMLDivElement>(null);
   const labsRef = useRef<HTMLDivElement>(null);
@@ -174,16 +185,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Logo: Lafole Academy Logo */}
             <div 
               id="navbar-brand-logo"
-              onClick={() => setActiveView('home')}
+              onClick={() => {
+                setActiveView('home');
+                setMobileMenuOpen(false);
+              }}
               className="cursor-pointer flex items-center space-x-2 flex-shrink-0 group py-1"
               title="Lafole Academy - Home"
             >
-              <div className="h-8 sm:h-9 flex items-center group-hover:opacity-90 transition-opacity">
+              <div className="h-7 sm:h-9 flex items-center group-hover:opacity-90 transition-opacity">
                 <img 
                   src={LOGO_URL} 
                   alt="Lafole Academy" 
                   referrerPolicy="no-referrer"
-                  className="h-7 sm:h-8 w-auto max-w-[180px] sm:max-w-[210px] object-contain dark:brightness-0 dark:invert transition-all"
+                  className="h-6 sm:h-8 w-auto max-w-[125px] xs:max-w-[160px] sm:max-w-[210px] object-contain dark:brightness-0 dark:invert transition-all"
                   onError={(e) => {
                     const target = e.target as HTMLElement;
                     target.style.display = 'none';
@@ -422,18 +436,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Contact Link */}
               <button 
-                onClick={() => alert('Contact Lafole Academy: info@lafole.net / +252 61 92909900')}
-                className="px-2.5 py-1.5 rounded-lg text-[14.5px] sm:text-[15px] font-[500] transition-colors hover:text-black dark:hover:text-white text-[#374151] dark:text-slate-200 cursor-pointer"
+                id="btn-nav-contact"
+                onClick={() => setActiveView('contact')}
+                className={`px-2.5 py-1.5 rounded-lg text-[14.5px] sm:text-[15px] font-[500] transition-colors hover:text-black dark:hover:text-white cursor-pointer ${
+                  activeView === 'contact'
+                    ? 'text-[#22C55E] dark:text-[#22C55E] font-[600]'
+                    : 'text-[#374151] dark:text-slate-200'
+                }`}
               >
                 Contact
               </button>
             </nav>
           </div>
 
-          {/* Right: Search Bar, Dark Mode, Cart, Sign In, Start Learning CTA */}
-          <div className="flex items-center space-x-2 sm:space-x-2.5">
+          {/* Right: Search Bar, Dark Mode, Cart, Sign In, Start Learning CTA, and Mobile Menu Toggle */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2.5">
             
-            {/* Search Input Bar */}
+            {/* Search Input Bar (Desktop) */}
             <div className="relative hidden lg:block">
               <div 
                 onClick={onOpenSearch}
@@ -447,14 +466,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
+            {/* Mobile Search Button (Quick access to search modal on phones/tablets) */}
+            <button
+              onClick={onOpenSearch}
+              aria-label="Search courses"
+              className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-[#E4E4E7] dark:border-slate-800 text-[#27272A] dark:text-slate-200 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
+              title="Search courses"
+            >
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-700 dark:text-slate-300" />
+            </button>
+
             {/* Dark Mode Toggle Button */}
             <button
               id="btn-toggle-darkmode"
               onClick={() => setIsDarkMode(!isDarkMode)}
               aria-label="Toggle dark mode"
-              className="w-9 h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-[#E4E4E7] dark:border-slate-800 text-[#27272A] dark:text-slate-200 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-[#E4E4E7] dark:border-slate-800 text-[#27272A] dark:text-slate-200 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
             >
-              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </button>
 
             {/* Cart Button & Dropdown */}
@@ -464,9 +493,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setCartOpen(!cartOpen)}
                 aria-label="Shopping cart"
                 aria-expanded={cartOpen}
-                className="relative w-9 h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-[#E4E4E7] dark:border-slate-800 text-[#27272A] dark:text-slate-200 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
+                className="relative w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-[#E4E4E7] dark:border-slate-800 text-[#27272A] dark:text-slate-200 transition-colors shadow-2xs cursor-pointer flex-shrink-0"
               >
-                <ShoppingCart className="w-4 h-4" />
+                <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {cartCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#22C55E] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs">
                     {cartCount}
@@ -500,134 +529,377 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </div>
 
-            {/* Conditional Authentication View: Verified Student Avatar + My Dashboard OR Sign In + Start Learning */}
-            {isEmailVerified ? (
-              <>
-                {/* Avatar with initials of their verified email (Matches user screenshot) */}
-                <div className="relative" ref={userMenuRef}>
-                  <button
-                    id="navbar-user-avatar"
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    aria-label="Student profile menu"
-                    title={`Verified Email: ${effectiveEmail} (${initials})`}
-                    className="w-9 h-9 rounded-full bg-[#F4F4EF] dark:bg-slate-800 border border-[#E5E5DE] dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center text-[#52525B] dark:text-slate-200 font-semibold text-xs tracking-wider transition-all shadow-2xs cursor-pointer flex-shrink-0 select-none hover:scale-105"
-                  >
-                    <span>{initials}</span>
-                  </button>
+            {/* Desktop Auth Section (Visible on md+ screens) */}
+            <div className="hidden md:flex items-center space-x-2">
+              {isEmailVerified ? (
+                <>
+                  {/* Avatar with initials of their verified email */}
+                  <div className="relative" ref={userMenuRef}>
+                    <button
+                      id="navbar-user-avatar"
+                      onClick={() => setUserMenuOpen(!userMenuOpen)}
+                      aria-label="Student profile menu"
+                      title={`Verified Email: ${effectiveEmail} (${initials})`}
+                      className="w-9 h-9 rounded-full bg-[#F4F4EF] dark:bg-slate-800 border border-[#E5E5DE] dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center text-[#52525B] dark:text-slate-200 font-semibold text-xs tracking-wider transition-all shadow-2xs cursor-pointer flex-shrink-0 select-none hover:scale-105"
+                    >
+                      <span>{initials}</span>
+                    </button>
 
-                  {/* Profile & Session Popover */}
-                  {userMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3.5 z-50 animate-fadeIn space-y-2.5">
-                      <div className="flex items-center space-x-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                        <div className="w-10 h-10 rounded-full bg-[#F4F4EF] dark:bg-slate-800 border border-[#E5E5DE] dark:border-slate-700 flex items-center justify-center text-[#52525B] dark:text-slate-200 font-bold text-sm tracking-wider flex-shrink-0">
-                          {initials}
+                    {/* Profile & Session Popover */}
+                    {userMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-[calc(100vw-32px)] max-w-[288px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3.5 z-50 animate-fadeIn space-y-2.5">
+                        <div className="flex items-center space-x-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                          <div className="w-10 h-10 rounded-full bg-[#F4F4EF] dark:bg-slate-800 border border-[#E5E5DE] dark:border-slate-700 flex items-center justify-center text-[#52525B] dark:text-slate-200 font-bold text-sm tracking-wider flex-shrink-0">
+                            {initials}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {effectiveName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              {effectiveEmail}
+                            </div>
+                            <div className="inline-flex items-center space-x-1 mt-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200/60 dark:border-emerald-800 text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                              <CheckCircle2 className="w-3 h-3 text-[#22C55E]" />
+                              <span>Email Verified</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                            {effectiveName}
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                            {effectiveEmail}
-                          </div>
-                          <div className="inline-flex items-center space-x-1 mt-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200/60 dark:border-emerald-800 text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
-                            <CheckCircle2 className="w-3 h-3 text-[#22C55E]" />
-                            <span>Email Verified</span>
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="space-y-1">
-                        <button
-                          onClick={() => {
-                            if (onNavigateToDashboard) onNavigateToDashboard();
-                            else setActiveView('dashboard');
-                            setUserMenuOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span className="font-medium">My Dashboard</span>
-                          <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setActiveView('learn');
-                            setUserMenuOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                          <span className="font-medium">Course Classroom & Labs</span>
-                          <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                        </button>
-                      </div>
-
-                      {onSignOut && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div className="space-y-1">
                           <button
                             onClick={() => {
-                              onSignOut();
+                              if (onNavigateToDashboard) onNavigateToDashboard();
+                              else setActiveView('dashboard');
                               setUserMenuOpen(false);
                             }}
-                            className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-medium flex items-center space-x-1.5 cursor-pointer transition-colors"
+                            className="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-between cursor-pointer transition-colors"
                           >
-                            <LogOut className="w-3.5 h-3.5" />
-                            <span>Sign out</span>
+                            <span className="font-medium">My Dashboard</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveView('learn');
+                              setUserMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-between cursor-pointer transition-colors"
+                          >
+                            <span className="font-medium">Course Classroom & Labs</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
                           </button>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
 
-                {/* Primary Action Button: My Dashboard (Matches user screenshot) */}
-                <button
-                  id="btn-my-dashboard"
-                  onClick={() => {
-                    if (onNavigateToDashboard) onNavigateToDashboard();
-                    else setActiveView('dashboard');
-                  }}
-                  className={`flex items-center space-x-1.5 h-9 px-3.5 sm:px-4 text-white text-[14px] font-[500] rounded-lg shadow-xs transition-all hover:scale-[1.01] flex-shrink-0 cursor-pointer whitespace-nowrap ${
-                    activeView === 'dashboard'
-                      ? 'bg-[#16A34A] ring-2 ring-[#22C55E]/40 font-[600]'
-                      : 'bg-[#22C55E] hover:bg-[#16A34A]'
-                  }`}
-                >
-                  <span>My Dashboard</span>
-                  <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
-                </button>
-              </>
-            ) : (
-              <>
-                {/* Sign In Text Link */}
-                <button
-                  id="btn-sign-in"
-                  onClick={() => setActiveView('login')}
-                  className={`hidden sm:inline-flex items-center h-9 px-2.5 text-[14.5px] font-[500] transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    activeView === 'login'
-                      ? 'text-[#22C55E] font-[600]'
-                      : 'text-[#09090B] hover:text-[#22C55E] dark:text-slate-200 dark:hover:text-white'
-                  }`}
-                >
-                  Sign in
-                </button>
+                        {onSignOut && (
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                              onClick={() => {
+                                onSignOut();
+                                setUserMenuOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-medium flex items-center space-x-1.5 cursor-pointer transition-colors"
+                            >
+                              <LogOut className="w-3.5 h-3.5" />
+                              <span>Sign out</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                {/* Primary Action Button: Start learning */}
-                <button
-                  id="btn-start-learning"
-                  onClick={() => setActiveView('catalog')}
-                  className="flex items-center space-x-1.5 h-9 px-3.5 sm:px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-[500] rounded-lg shadow-xs transition-all hover:scale-[1.01] flex-shrink-0 cursor-pointer whitespace-nowrap"
-                >
-                  <span>Start learning</span>
-                  <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
-                </button>
-              </>
-            )}
+                  {/* Primary Action Button: My Dashboard */}
+                  <button
+                    id="btn-my-dashboard"
+                    onClick={() => {
+                      if (onNavigateToDashboard) onNavigateToDashboard();
+                      else setActiveView('dashboard');
+                    }}
+                    className={`flex items-center space-x-1.5 h-9 px-3.5 sm:px-4 text-white text-[14px] font-[500] rounded-lg shadow-xs transition-all hover:scale-[1.01] flex-shrink-0 cursor-pointer whitespace-nowrap ${
+                      activeView === 'dashboard'
+                        ? 'bg-[#16A34A] ring-2 ring-[#22C55E]/40 font-[600]'
+                        : 'bg-[#22C55E] hover:bg-[#16A34A]'
+                    }`}
+                  >
+                    <span>My Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Sign In Text Link */}
+                  <button
+                    id="btn-sign-in"
+                    onClick={() => setActiveView('login')}
+                    className={`inline-flex items-center h-9 px-2.5 text-[14.5px] font-[500] transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                      activeView === 'login'
+                        ? 'text-[#22C55E] font-[600]'
+                        : 'text-[#09090B] hover:text-[#22C55E] dark:text-slate-200 dark:hover:text-white'
+                    }`}
+                  >
+                    Sign in
+                  </button>
+
+                  {/* Primary Action Button: Start learning */}
+                  <button
+                    id="btn-start-learning"
+                    onClick={() => setActiveView('catalog')}
+                    className="flex items-center space-x-1.5 h-9 px-3.5 sm:px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[14px] font-[500] rounded-lg shadow-xs transition-all hover:scale-[1.01] flex-shrink-0 cursor-pointer whitespace-nowrap"
+                  >
+                    <span>Start learning</span>
+                    <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Menu Hamburger Toggle Button */}
+            <button
+              id="btn-mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
+              className="md:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-[#E4E4E7] dark:border-slate-800 text-slate-800 dark:text-slate-200 transition-colors shadow-2xs cursor-pointer flex-shrink-0 ml-0.5"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-4 h-4 text-slate-900 dark:text-white" />
+              ) : (
+                <Menu className="w-4 h-4 text-slate-900 dark:text-white" />
+              )}
+            </button>
+
           </div>
         </div>
       </div>
     </div>
 
-    {/* Alert Bar just below the header (hidden on dashboard, catalog, diplomas, books, course-details, checkout, and cart pages) */}
-    {activeView !== 'dashboard' && activeView !== 'catalog' && activeView !== 'diplomas' && activeView !== 'books' && activeView !== 'course-details' && activeView !== 'checkout' && activeView !== 'cart' && (
+      {/* Mobile Navigation Drawer Panel */}
+      {mobileMenuOpen && (
+        <div 
+          id="mobile-nav-drawer"
+          className="md:hidden bg-[#FBFBF9] dark:bg-[#0B0F17] border-b border-slate-200/90 dark:border-slate-800 shadow-2xl animate-fadeIn max-h-[calc(100vh-68px)] overflow-y-auto"
+        >
+          <div className="p-4 space-y-4">
+            
+            {/* Quick Search Action */}
+            <div 
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenSearch?.();
+              }}
+              className="flex items-center space-x-2.5 w-full h-11 px-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl cursor-pointer text-slate-400 text-xs shadow-2xs hover:border-[#22C55E] transition-colors"
+            >
+              <Search className="w-4 h-4 text-slate-400" />
+              <span>Search 93+ courses, diplomas, topics...</span>
+            </div>
+
+            {/* Main Navigation Items */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-2 border border-slate-200/80 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/80">
+              
+              <button
+                onClick={() => {
+                  setActiveView('home');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                  activeView === 'home'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-[#16A34A] dark:text-emerald-400'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span className="flex items-center space-x-3">
+                  <Home className="w-4 h-4 text-slate-500" />
+                  <span>Home</span>
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 opacity-40" />
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveView('catalog');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                  activeView === 'catalog'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-[#16A34A] dark:text-emerald-400'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span className="flex items-center space-x-3">
+                  <GraduationCap className="w-4 h-4 text-[#22C55E]" />
+                  <span>Course Catalog</span>
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                  93 Available
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveView('diplomas');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                  activeView === 'diplomas'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-[#16A34A] dark:text-emerald-400'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span className="flex items-center space-x-3">
+                  <Award className="w-4 h-4 text-indigo-500" />
+                  <span>8 Diploma Tracks</span>
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 opacity-40" />
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveView('books');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                  activeView === 'books'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-[#16A34A] dark:text-emerald-400'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span className="flex items-center space-x-3">
+                  <BookOpen className="w-4 h-4 text-amber-500" />
+                  <span>Technical Books</span>
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 opacity-40" />
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveView('contact');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                  activeView === 'contact'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-[#16A34A] dark:text-emerald-400'
+                    : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span className="flex items-center space-x-3">
+                  <Phone className="w-4 h-4 text-[#22C55E]" />
+                  <span>Contact</span>
+                </span>
+                <span className="text-[11px] font-mono font-medium text-slate-500">
+                  +252 61 9290900
+                </span>
+              </button>
+
+            </div>
+
+            {/* Mobile User Authentication / Student Session */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 space-y-3">
+              {isEmailVerified ? (
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-[#22C55E] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                      {initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {effectiveName}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {effectiveEmail}
+                      </div>
+                      <div className="inline-flex items-center space-x-1 mt-0.5 px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950 text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                        <CheckCircle2 className="w-3 h-3 text-[#22C55E]" />
+                        <span>Verified Student</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (onNavigateToDashboard) onNavigateToDashboard();
+                      else setActiveView('dashboard');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full h-11 bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xs"
+                  >
+                    <span>Open Student Dashboard</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveView('learn');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl flex items-center justify-center transition-all cursor-pointer"
+                  >
+                    Course Classroom &amp; Labs
+                  </button>
+
+                  {onSignOut && (
+                    <button
+                      onClick={() => {
+                        onSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="w-full py-1 text-center text-xs text-rose-600 dark:text-rose-400 font-semibold hover:underline cursor-pointer"
+                    >
+                      Sign out
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <button
+                    onClick={() => {
+                      setActiveView('catalog');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full h-11 bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-sm rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xs"
+                  >
+                    <span>Start learning</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveView('login');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center transition-all cursor-pointer"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Direct Contact Links in Mobile Menu */}
+            <div className="pt-1 pb-2 flex items-center justify-center space-x-3 text-xs text-slate-500 dark:text-slate-400">
+              <a 
+                href="https://wa.me/252619290900" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-[#22C55E] font-semibold hover:underline flex items-center space-x-1"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>+252 61 9290900</span>
+              </a>
+              <span>•</span>
+              <a 
+                href="mailto:info@lafole.net" 
+                className="hover:underline flex items-center space-x-1"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>info@lafole.net</span>
+              </a>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    {/* Alert Bar just below the header (hidden on dashboard, catalog, diplomas, books, course-details, checkout, cart, and contact pages) */}
+    {activeView !== 'dashboard' && activeView !== 'catalog' && activeView !== 'diplomas' && activeView !== 'books' && activeView !== 'course-details' && activeView !== 'checkout' && activeView !== 'cart' && activeView !== 'contact' && (
       <PromoAlertBar onShopNow={onShopNow} />
     )}
   </header>
