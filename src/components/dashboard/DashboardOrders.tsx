@@ -8,7 +8,7 @@ export interface OrderItem {
   date: string;
   items: string;
   amount: string;
-  status: 'COMPLETED' | 'PENDING' | 'PROCESSING';
+  status: 'COMPLETED' | 'PENDING' | 'PROCESSING' | 'PENDING PAYMENT VERIFICATION';
   paymentMethod: string;
 }
 
@@ -53,18 +53,24 @@ export const DashboardOrders: React.FC<DashboardOrdersProps> = ({
               ? rawDate.toLocaleDateString('en-GB') 
               : new Date().toLocaleDateString('en-GB');
 
-            const orderId = docSnap.id.startsWith('enr_')
-              ? 'ORD-' + docSnap.id.replace('enr_', '').substring(0, 8).toUpperCase()
-              : (data.id ? 'ORD-' + String(data.id).substring(0, 8).toUpperCase() : `ORD-${docSnap.id.substring(0, 8).toUpperCase()}`);
+            const orderId = data.orderReference
+              ? data.orderReference
+              : (docSnap.id.startsWith('enr_')
+                ? 'ORD-' + docSnap.id.replace('enr_', '').substring(0, 8).toUpperCase()
+                : (data.id ? 'ORD-' + String(data.id).substring(0, 8).toUpperCase() : `ORD-${docSnap.id.substring(0, 8).toUpperCase()}`));
 
             const amt = data.amount !== undefined 
               ? (typeof data.amount === 'number' ? `$${data.amount.toFixed(2)}` : (String(data.amount).startsWith('$') ? data.amount : `$${data.amount}`))
               : '$0.00';
 
             const isDone = data.paymentStatus === 'completed' || data.status === 'enrolled';
+            const orderStatus = isDone 
+              ? 'COMPLETED' 
+              : (data.status === 'pending_payment_verification' ? 'PENDING PAYMENT VERIFICATION' : 'PENDING');
 
             let method = 'Online Payment';
             if (data.paymentMethod === 'card') method = 'Credit / Debit Card';
+            else if (['EVC Plus', 'eDahab', 'ZAAD'].includes(data.paymentMethod)) method = `${data.paymentMethod} (Manual Transfer)`;
             else if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / Zaad)';
             else if (data.paymentMethod) method = data.paymentMethod;
 
@@ -73,7 +79,7 @@ export const DashboardOrders: React.FC<DashboardOrdersProps> = ({
               date: dateStr,
               items: data.courseTitle || 'Diploma Program Track',
               amount: amt,
-              status: isDone ? 'COMPLETED' : 'PENDING',
+              status: orderStatus,
               paymentMethod: method
             });
           }
@@ -92,15 +98,16 @@ export const DashboardOrders: React.FC<DashboardOrdersProps> = ({
               parsed.email?.toLowerCase() === cleanEmail && 
               parsed.courseId && 
               parsed.courseId !== 'general-student' &&
-              (parsed.paymentStatus === 'completed' || parsed.status === 'enrolled')
+              (parsed.paymentStatus === 'completed' || parsed.status === 'enrolled' || parsed.status === 'pending_payment_verification')
             ) {
+              const isPaid = parsed.paymentStatus === 'completed' || parsed.status === 'enrolled';
               retrievedOrders.push({
-                id: parsed.enrollmentId ? 'ORD-' + parsed.enrollmentId.replace('enr_', '').substring(0, 8).toUpperCase() : 'ORD-LOCAL-01',
-                date: new Date().toLocaleDateString('en-GB'),
+                id: parsed.orderReference || (parsed.enrollmentId ? 'ORD-' + parsed.enrollmentId.replace('enr_', '').substring(0, 8).toUpperCase() : 'ORD-LOCAL-01'),
+                date: parsed.paymentDate || new Date().toLocaleDateString('en-GB'),
                 items: parsed.courseTitle || 'Enrolled Track',
                 amount: parsed.amount ? `$${Number(parsed.amount).toFixed(2)}` : '$0.00',
-                status: 'COMPLETED',
-                paymentMethod: parsed.paymentMethod || 'Online Payment'
+                status: isPaid ? 'COMPLETED' : 'PENDING PAYMENT VERIFICATION',
+                paymentMethod: parsed.paymentMethod ? `${parsed.paymentMethod} (Manual Transfer)` : 'Manual Transfer'
               });
             }
           } catch {}

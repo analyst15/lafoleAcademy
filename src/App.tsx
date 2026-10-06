@@ -48,6 +48,7 @@ import { CourseCurriculum } from './components/CourseCurriculum';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { InstructorStudio } from './components/InstructorStudio';
 import { CertificateModal } from './components/CertificateModal';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 import { DashboardLayout, DashboardTab } from './components/dashboard/DashboardLayout';
 import { 
   getStudentEnrolledCourseIds, 
@@ -58,7 +59,7 @@ import {
 } from './lib/firebase';
 import { formatStudentDisplayName } from './utils/userUtils';
 
-export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact';
+export type AppView = 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact' | 'admin';
 
 export function parseRouteFromLocation(): {
   view: AppView;
@@ -72,7 +73,7 @@ export function parseRouteFromLocation(): {
   const rawPath = window.location.pathname.toLowerCase();
   const path = rawPath.length > 1 ? rawPath.replace(/\/+$/, '') : rawPath;
 
-  // Support hash routing fallback (e.g. /#/catalog, /#/verify-email?token=..., #catalog)
+  // Support hash routing fallback (e.g. /#/catalog, /#/verify-email?token=..., #catalog, #/admin)
   const hashRaw = window.location.hash.toLowerCase().replace(/^#\/?/, '').split('?')[0];
   const hashRoute = hashRaw ? (hashRaw.startsWith('/') ? hashRaw : '/' + hashRaw).replace(/\/+$/, '') : '';
 
@@ -102,7 +103,9 @@ export function parseRouteFromLocation(): {
   let view: AppView = 'home';
   let courseParamId: string | undefined = undefined;
 
-  if (effectiveRoute === '/dashboard' || effectiveRoute.startsWith('/dashboard')) {
+  if (effectiveRoute === '/admin' || effectiveRoute.startsWith('/admin')) {
+    view = 'admin';
+  } else if (effectiveRoute === '/dashboard' || effectiveRoute.startsWith('/dashboard')) {
     view = 'dashboard';
   } else if (effectiveRoute === '/cart' || effectiveRoute.startsWith('/cart') || effectiveRoute.startsWith('/checkout')) {
     view = 'cart';
@@ -545,6 +548,8 @@ export default function App() {
         ? '/login'
         : view === 'contact'
         ? '/contact'
+        : view === 'admin'
+        ? '/admin'
         : '/';
       if (window.location.pathname !== targetPath) {
         window.history.pushState({ view }, '', targetPath);
@@ -1002,7 +1007,7 @@ export default function App() {
       )}
 
       {/* Global Quick Navigation Bar (Reference Navbar with Lafole Academy Logo) */}
-      {activeView !== 'login' && (
+      {activeView !== 'login' && activeView !== 'admin' && (
         <Navbar
           activeView={activeView}
           setActiveView={navigateTo}
@@ -1728,6 +1733,21 @@ export default function App() {
             onSwitchToStudentView={() => navigateTo('learn')}
           />
         </main>
+      )}
+
+      {/* View 13: Admin Payments Dashboard (/admin) */}
+      {activeView === 'admin' && (
+        <AdminDashboard
+          onBackToHome={() => navigateTo('home')}
+          onNavigateToCourse={(cId) => {
+            const found = courses.find(c => c.id === cId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cId);
+            if (found) navigateToCourse(found);
+            else navigateTo('catalog');
+          }}
+          onNavigateToStudentDashboard={() => navigateToDashboard('mylearning')}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        />
       )}
 
       {/* Quick Search Modal (Cmd+K) */}

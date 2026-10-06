@@ -164,3 +164,49 @@ export interface CartItem {
   category?: string;
   instructorName?: string;
 }
+
+export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'paid';
+export type OrderStatus = 'pending' | 'awaiting_verification' | 'paid' | 'rejected' | 'cancelled' | 'completed';
+export type EnrollmentStatus = 'pending' | 'active' | 'suspended' | 'completed';
+
+export interface PaymentRecord {
+  id: string;
+  order_id: string;
+  student_id: string;
+  student_name: string;
+  student_email?: string;
+  course_id: string;
+  course_title?: string;
+  amount: number;
+  currency: string;
+  payment_method: 'EVC Plus' | 'eDahab' | 'ZAAD' | string;
+  transaction_reference: string;
+  sender_phone: string;
+  proof_url?: string;
+  status: PaymentStatus;
+  submitted_at: string;
+  verified_at?: string | null;
+  verified_by?: string | null;
+}
+
+export interface OrderRecord {
+  id: string;
+  student_id: string;
+  student_name?: string;
+  course_id: string;
+  course_title?: string;
+  amount: number;
+  currency: string;
+  status: OrderStatus;
+  created_at: string;
+  paid_at?: string | null;
+}
+
+export interface EnrollmentRecord {
+  id: string;
+  student_id: string;
+  course_id: string;
+  payment_id: string;
+  status: EnrollmentStatus;
+  enrolled_at: string;
+}

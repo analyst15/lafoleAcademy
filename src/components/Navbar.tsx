@@ -28,8 +28,8 @@ import { getEmailInitials, formatStudentDisplayName } from '../utils/userUtils';
 import { CartDropdown } from './CartDropdown';
 
 interface NavbarProps {
-  activeView: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact';
-  setActiveView: (view: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact') => void;
+  activeView: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact' | 'admin';
+  setActiveView: (view: 'home' | 'catalog' | 'learn' | 'progress' | 'instructor' | 'diplomas' | 'books' | 'course-details' | 'checkout' | 'verify-email' | 'login' | 'cart' | 'dashboard' | 'contact' | 'admin') => void;
   onNavigateToDashboard?: () => void;
   courses: Course[];
   activeCourse: Course;
@@ -588,6 +588,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="font-medium">Course Classroom & Labs</span>
                             <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
                           </button>
+                          <button
+                            onClick={() => {
+                              setActiveView('admin');
+                              setUserMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-emerald-50/70 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-between cursor-pointer transition-colors"
+                          >
+                            <span className="font-semibold flex items-center space-x-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <span>Admin Payments (/admin)</span>
+                            </span>
+                            <ArrowRight className="w-3.5 h-3.5 text-emerald-500" />
+                          </button>
                         </div>
 
                         {onSignOut && (
@@ -834,6 +847,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl flex items-center justify-center transition-all cursor-pointer"
                   >
                     Course Classroom &amp; Labs
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveView('admin');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full h-10 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Admin Payments (/admin)</span>
                   </button>
 
                   {onSignOut && (

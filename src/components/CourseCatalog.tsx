@@ -48,18 +48,18 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
   });
 
   return (
-    <div id="course-catalog-section" className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 py-10 sm:py-14 space-y-6 sm:space-y-8 min-w-0 overflow-hidden">
+    <div id="course-catalog-section" className="w-full max-w-[1440px] mx-auto px-3.5 sm:px-6 lg:px-10 py-8 sm:py-14 space-y-5 sm:space-y-8 min-w-0 overflow-hidden box-border">
       {/* Section Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 min-w-0">
-        <div className="space-y-2 min-w-0">
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-[#22C55E] text-xs font-semibold">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 sm:gap-4 min-w-0">
+        <div className="space-y-1.5 sm:space-y-2 min-w-0">
+          <div className="inline-flex items-center space-x-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-[#22C55E] text-xs font-semibold">
             <Sparkles className="w-3.5 h-3.5" />
             <span>English Language Programs</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Explore English Language Courses
           </h2>
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+          <p className="text-xs sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
             Each track features hosted video lectures with automated watch tracking, interactive quizzes with instant grading, and accredited graduation certificates.
           </p>
         </div>
@@ -73,7 +73,7 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
               placeholder="Search English courses & skills..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#22C55E]/40"
+              className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#22C55E]/40"
             />
           </div>
         </div>
@@ -86,7 +86,7 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
+              className={`px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-[#22C55E] text-white shadow-xs'
                   : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50'
@@ -98,8 +98,8 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
         </div>
       </div>
 
-      {/* Courses Grid */}
-      <div className="w-full min-w-0 max-w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+      {/* Courses Grid: Responsive 1-col on mobile, 2-col on sm/md, 3-col on lg */}
+      <div className="w-full min-w-0 max-w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {filteredCourses.map((course) => {
           const totalLessons = course.modules.flatMap(m => m.lessons).length;
           const isSelected = activeCourse.id === course.id;
@@ -111,38 +111,39 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
           return (
             <div
               key={course.id}
-              className="w-full min-w-0 max-w-full bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col hover:shadow-lg transition-all hover:border-emerald-500/40 group"
+              onClick={() => onSelectCourse(course)}
+              className="w-full min-w-0 max-w-full bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col hover:shadow-lg transition-all hover:border-emerald-500/40 group cursor-pointer"
             >
               {/* Course Thumbnail Image */}
-              <div className="relative w-full aspect-video overflow-hidden bg-slate-950">
+              <div className="relative w-full aspect-[16/10] overflow-hidden bg-slate-950">
                 <img
                   src={course.thumbnail}
                   alt={course.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-90"
                 />
                 
-                {/* Level & Category Badges */}
-                <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-md">
+                {/* Level & Category Badges (constrained to never overflow on mobile) */}
+                <div className="absolute top-2 sm:top-3 left-2 sm:left-3 flex items-center gap-1.5 max-w-[calc(100%-16px)] sm:max-w-[calc(100%-24px)] overflow-hidden">
+                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] font-bold bg-black/70 text-white backdrop-blur-md truncate max-w-[170px] sm:max-w-none">
                     {course.category}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#22C55E] text-white">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#22C55E] text-white flex-shrink-0">
                     {course.level}
                   </span>
                 </div>
 
                 {/* Progress pill if started */}
                 {percent > 0 && (
-                  <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-900/80 text-emerald-400 backdrop-blur-md border border-emerald-500/30">
+                  <div className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold bg-slate-900/80 text-emerald-400 backdrop-blur-md border border-emerald-500/30">
                     {percent}% Completed
                   </div>
                 )}
               </div>
 
               {/* Course Info */}
-              <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3 sm:space-y-4 min-w-0">
-                <div className="space-y-1.5 min-w-0">
-                  <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white leading-snug group-hover:text-[#22C55E] transition-colors line-clamp-2">
+              <div className="p-3.5 sm:p-5 flex-1 flex flex-col justify-between space-y-2.5 sm:space-y-4 min-w-0">
+                <div className="space-y-1 sm:space-y-1.5 min-w-0">
+                  <h3 className="font-bold text-sm sm:text-base lg:text-lg text-slate-900 dark:text-white leading-snug group-hover:text-[#22C55E] transition-colors line-clamp-2">
                     {course.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
@@ -150,39 +151,44 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
                   </p>
                 </div>
 
-                {/* Meta details: lessons, hours */}
-                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                  <div className="flex items-center space-x-3">
+                {/* Meta details: lessons, hours - safe wrapped row with no overflow */}
+                <div className="pt-2 sm:pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400 min-w-0">
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-shrink-0">
                     <span className="flex items-center">
                       <BookOpen className="w-3.5 h-3.5 mr-1 text-[#22C55E] flex-shrink-0" />
                       <span>{totalLessons} Lessons</span>
                     </span>
+                    <span>·</span>
                     <span className="flex items-center">
                       <Clock className="w-3.5 h-3.5 mr-1 text-slate-400 flex-shrink-0" />
                       <span>{course.estimatedHours} hrs</span>
                     </span>
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex-shrink-0 truncate">
                     Diploma Track
                   </span>
                 </div>
 
                 {/* Instructor & CTA */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 min-w-0">
-                  <div className="flex items-center space-x-2 min-w-0">
+                <div className="pt-2.5 sm:pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center space-x-2 min-w-0 flex-1">
                     <img
                       src={course.instructor.avatar}
                       alt={course.instructor.name}
-                      className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 flex-shrink-0"
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 flex-shrink-0"
                     />
-                    <div className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[120px] sm:max-w-[160px]">
+                    <div className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 truncate min-w-0">
                       {course.instructor.name}
                     </div>
                   </div>
 
                   <button
-                    onClick={() => onStartCourse(course)}
-                    className="flex items-center space-x-1 px-3 sm:px-3.5 py-1.5 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all hover:scale-[1.02] cursor-pointer flex-shrink-0"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartCourse(course);
+                    }}
+                    className="flex items-center space-x-1 px-2.5 sm:px-3.5 py-1.5 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all hover:scale-[1.02] cursor-pointer flex-shrink-0"
                   >
                     <span>{percent > 0 ? 'Resume' : 'Start Track'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />

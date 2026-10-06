@@ -1291,7 +1291,7 @@ export async function getStudentEnrolledCourseIds(email: string): Promise<string
     snap.forEach((docSnap) => {
       const data = docSnap.data();
       if (
-        (data.status === 'enrolled' || data.paymentStatus === 'completed') &&
+        (data.status === 'enrolled' || data.status === 'active' || data.paymentStatus === 'completed') &&
         data.courseId &&
         data.courseId !== 'general-student'
       ) {
@@ -1551,5 +1551,511 @@ export async function validateStudentVerificationStatus(
   }
 
   return { verified: false, email: cleanEmail };
+}
+
+// ============================================================================
+// ADMIN PAYMENTS, ORDERS & ENROLLMENTS SYSTEM
+// ============================================================================
+
+export interface PaymentTableRecord {
+  id: string;
+  order_id: string;
+  student_id: string;
+  course_id: string;
+  amount: number;
+  currency: string;
+  payment_method: string;
+  transaction_reference: string;
+  sender_phone: string;
+  proof_url?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'paid';
+  submitted_at: string;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  // Display & UI helpers
+  student_name: string;
+  student_email: string;
+  course_title: string;
+}
+
+export interface OrderTableRecord {
+  id: string;
+  student_id: string;
+  course_id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'awaiting_verification' | 'paid' | 'rejected' | 'cancelled' | 'completed';
+  created_at: string;
+  paid_at?: string | null;
+  student_name?: string;
+  course_title?: string;
+  payment_id?: string;
+}
+
+export interface EnrollmentTableRecord {
+  id: string;
+  student_id: string;
+  course_id: string;
+  payment_id: string;
+  status: 'pending' | 'active' | 'suspended' | 'completed';
+  enrolled_at: string;
+  fullName?: string;
+  email?: string;
+  courseTitle?: string;
+}
+
+// Seed mock records strictly matching user brief:
+// 1. Ahmed Ali | English A1 / Digital Marketing | $25 | EVC Plus | 8H72K9 | Pending
+// 2. Mohamed Hassan | English A1 | $15 | eDahab | ED83492 | Pending
+export const DEFAULT_SEED_PAYMENTS: PaymentTableRecord[] = [
+  {
+    id: 'pay_ahmed_ali_8h72k9',
+    order_id: 'ord_la_2026_0001',
+    student_id: 'ahmed.ali@example.com',
+    student_name: 'Ahmed Ali',
+    student_email: 'ahmed.ali@example.com',
+    course_id: 'english-a1',
+    course_title: 'Digital Marketing',
+    amount: 25,
+    currency: 'USD',
+    payment_method: 'EVC Plus',
+    transaction_reference: '8H72K9',
+    sender_phone: '252619290900',
+    proof_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
+    status: 'pending',
+    submitted_at: '2026-10-06T14:32:00.000Z',
+    verified_at: null,
+    verified_by: null
+  },
+  {
+    id: 'pay_mohamed_hassan_ed83492',
+    order_id: 'ord_la_2026_0002',
+    student_id: 'mohamed.hassan@example.com',
+    student_name: 'Mohamed Hassan',
+    student_email: 'mohamed.hassan@example.com',
+    course_id: 'english-a1',
+    course_title: 'English A1',
+    amount: 15,
+    currency: 'USD',
+    payment_method: 'eDahab',
+    transaction_reference: 'ED83492',
+    sender_phone: '252658930121',
+    proof_url: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&auto=format&fit=crop&q=80',
+    status: 'pending',
+    submitted_at: '2026-10-06T12:15:00.000Z',
+    verified_at: null,
+    verified_by: null
+  }
+];
+
+/**
+ * Creates records in 'payments', 'orders', and 'enrollments' collections matching the exact database schema
+ */
+export async function recordPaymentOrderEnrollment(params: {
+  paymentId?: string;
+  orderId?: string;
+  enrollmentId?: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId: string;
+  courseTitle: string;
+  amount: number;
+  paymentMethod: string;
+  transactionReference: string;
+  senderPhone: string;
+  proofUrl?: string;
+}): Promise<{ paymentId: string; orderId: string; enrollmentId: string }> {
+  const paymentId = params.paymentId || `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const orderId = params.orderId || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const enrollmentId = params.enrollmentId || `enr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date().toISOString();
+
+  // 1. payments table
+  const paymentRecord: PaymentTableRecord = {
+    id: paymentId,
+    order_id: orderId,
+    student_id: params.studentId,
+    student_name: params.studentName,
+    student_email: params.studentEmail,
+    course_id: params.courseId,
+    course_title: params.courseTitle,
+    amount: params.amount,
+    currency: 'USD',
+    payment_method: params.paymentMethod,
+    transaction_reference: params.transactionReference,
+    sender_phone: params.senderPhone,
+    proof_url: params.proofUrl || '',
+    status: 'pending',
+    submitted_at: now,
+    verified_at: null,
+    verified_by: null
+  };
+
+  // 2. orders table
+  const orderRecord: OrderTableRecord = {
+    id: orderId,
+    student_id: params.studentId,
+    student_name: params.studentName,
+    course_id: params.courseId,
+    course_title: params.courseTitle,
+    amount: params.amount,
+    currency: 'USD',
+    status: 'awaiting_verification',
+    created_at: now,
+    paid_at: null,
+    payment_id: paymentId
+  };
+
+  // 3. enrollments table
+  const enrollmentRecord: EnrollmentTableRecord = {
+    id: enrollmentId,
+    student_id: params.studentId,
+    course_id: params.courseId,
+    payment_id: paymentId,
+    status: 'pending', // Pending payment verification - access is not granted yet
+    enrolled_at: now,
+    fullName: params.studentName,
+    email: params.studentEmail,
+    courseTitle: params.courseTitle
+  };
+
+  try {
+    await Promise.allSettled([
+      setDoc(doc(db, 'payments', paymentId), paymentRecord, { merge: true }),
+      setDoc(doc(db, 'orders', orderId), orderRecord, { merge: true }),
+      setDoc(doc(db, 'enrollments', enrollmentId), enrollmentRecord, { merge: true })
+    ]);
+  } catch (err) {
+    console.warn("Could not save payment records to Firestore:", err);
+  }
+
+  // Also persist to localStorage for offline reliability
+  if (typeof window !== 'undefined') {
+    try {
+      const existing = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      const filtered = existing.filter((p: any) => p.id !== paymentId);
+      localStorage.setItem('lafole_admin_payments', JSON.stringify([paymentRecord, ...filtered]));
+    } catch {}
+  }
+
+  return { paymentId, orderId, enrollmentId };
+}
+
+/**
+ * Fetches all payments for the admin dashboard, merging Firestore and local records
+ */
+export async function getAdminPayments(): Promise<PaymentTableRecord[]> {
+  const paymentMap = new Map<string, PaymentTableRecord>();
+
+  // Add default seed payments first
+  DEFAULT_SEED_PAYMENTS.forEach(p => paymentMap.set(p.id, { ...p }));
+
+  // Load from localStorage cache
+  if (typeof window !== 'undefined') {
+    try {
+      const local = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      if (Array.isArray(local)) {
+        local.forEach((p: PaymentTableRecord) => {
+          if (p && p.id) paymentMap.set(p.id, p);
+        });
+      }
+    } catch {}
+  }
+
+  // Load from Firestore
+  try {
+    const snap = await getDocs(collection(db, 'payments'));
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as PaymentTableRecord;
+      if (data && data.id) {
+        paymentMap.set(data.id, {
+          ...data,
+          id: data.id || docSnap.id
+        });
+      }
+    });
+  } catch (err) {
+    console.warn("Could not fetch payments from Firestore:", err);
+  }
+
+  // Also check if any enrollments had pending manual payments
+  try {
+    const enrSnap = await getDocs(collection(db, 'enrollments'));
+    enrSnap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d.transactionRef && (d.manualCurrency || ['EVC Plus', 'eDahab', 'ZAAD'].includes(d.paymentMethod))) {
+        const payId = `pay_${docSnap.id}`;
+        if (!paymentMap.has(payId)) {
+          const amt = typeof d.amount === 'number' ? d.amount : parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 25;
+          paymentMap.set(payId, {
+            id: payId,
+            order_id: d.orderReference ? `ord_${d.orderReference}` : `ord_${docSnap.id}`,
+            student_id: d.email || docSnap.id,
+            student_name: d.fullName || 'Student',
+            student_email: d.email || 'student@lafole.so',
+            course_id: d.courseId || 'english-a1',
+            course_title: d.courseTitle || 'English Beginners Level (A1-A2)',
+            amount: amt,
+            currency: 'USD',
+            payment_method: d.manualCurrency || d.paymentMethod || 'EVC Plus',
+            transaction_reference: d.transactionRef,
+            sender_phone: d.senderPhone || d.phoneNumber || '252619290900',
+            proof_url: d.screenshotUrl || '',
+            status: d.status === 'enrolled' || d.status === 'active' ? 'approved' : 'pending',
+            submitted_at: d.createdAt || new Date().toISOString(),
+            verified_at: d.verifiedAt || null,
+            verified_by: null
+          });
+        }
+      }
+    });
+  } catch (err) {
+    console.warn("Could not inspect enrollments for payments:", err);
+  }
+
+  const list = Array.from(paymentMap.values());
+  // Sort with pending first, then by submitted_at desc
+  list.sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (a.status !== 'pending' && b.status === 'pending') return 1;
+    return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime();
+  });
+
+  return list;
+}
+
+/**
+ * Approves a payment:
+ * Payment status -> PAID
+ * Order status -> COMPLETED
+ * Enrollment status -> ACTIVE
+ * Student gets course access
+ * Dispatches verification email
+ */
+export async function approveAdminPayment(
+  paymentId: string,
+  verifiedBy: string = 'Abdifatah Jama (Admin)'
+): Promise<{ success: boolean; message: string; payment?: PaymentTableRecord }> {
+  const payments = await getAdminPayments();
+  const payment = payments.find(p => p.id === paymentId);
+
+  if (!payment) {
+    return { success: false, message: 'Payment record not found' };
+  }
+
+  const now = new Date().toISOString();
+  payment.status = 'approved';
+  payment.verified_at = now;
+  payment.verified_by = verifiedBy;
+
+  // 1. Update Firestore payments collection
+  try {
+    await updateDoc(doc(db, 'payments', paymentId), {
+      status: 'approved',
+      verified_at: now,
+      verified_by: verifiedBy
+    });
+  } catch (err) {
+    // try setDoc with merge
+    try {
+      await setDoc(doc(db, 'payments', paymentId), {
+        ...payment,
+        status: 'approved',
+        verified_at: now,
+        verified_by: verifiedBy
+      }, { merge: true });
+    } catch {}
+  }
+
+  // 2. Update orders collection -> status = COMPLETED (or paid)
+  try {
+    if (payment.order_id) {
+      await setDoc(doc(db, 'orders', payment.order_id), {
+        id: payment.order_id,
+        status: 'completed',
+        paid_at: now,
+        lastUpdated: now
+      }, { merge: true });
+    }
+  } catch (err) {
+    console.warn("Could not update order status:", err);
+  }
+
+  // 3. Update enrollments collection -> status = ACTIVE (student gets course access!)
+  try {
+    const cleanEmail = payment.student_email.toLowerCase().trim();
+    // Search enrollments matching student email and course
+    const q = query(
+      collection(db, 'enrollments'),
+      where('email', '==', cleanEmail)
+    );
+    const snap = await getDocs(q);
+    let matched = false;
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.courseId === payment.course_id || data.courseTitle === payment.course_title || !matched) {
+        matched = true;
+        await setDoc(doc(db, 'enrollments', d.id), {
+          status: 'active',
+          paymentStatus: 'completed',
+          hasAccess: true,
+          verifiedAt: now,
+          verified_at: now
+        }, { merge: true });
+      }
+    }
+    if (!matched) {
+      // Create active enrollment doc
+      const enrId = `enr_active_${paymentId}`;
+      await setDoc(doc(db, 'enrollments', enrId), {
+        id: enrId,
+        student_id: cleanEmail,
+        course_id: payment.course_id,
+        course_title: payment.course_title,
+        payment_id: payment.id,
+        email: cleanEmail,
+        fullName: payment.student_name,
+        status: 'active',
+        paymentStatus: 'completed',
+        hasAccess: true,
+        enrolled_at: now,
+        verifiedAt: now
+      }, { merge: true });
+    }
+
+    // Update user profile in 'users' and 'students'
+    const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+    const userSnap = await getDoc(doc(db, 'users', userDocId));
+    const existingCourses = userSnap.exists() && Array.isArray(userSnap.data()?.enrolledCourseIds)
+      ? userSnap.data()?.enrolledCourseIds
+      : [];
+    const updatedCourses = Array.from(new Set([...existingCourses, payment.course_id]));
+
+    await setDoc(doc(db, 'users', userDocId), {
+      status: 'active',
+      enrolledCourseIds: updatedCourses,
+      lastEnrolledCourseId: payment.course_id,
+      lastEnrolledCourseTitle: payment.course_title,
+      lastUpdated: now
+    }, { merge: true });
+
+    await setDoc(doc(db, 'students', userDocId), {
+      status: 'active',
+      enrolledCourseIds: updatedCourses,
+      lastEnrolledCourseId: payment.course_id,
+      lastEnrolledCourseTitle: payment.course_title,
+      lastUpdated: now
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Could not activate enrollment in Firestore:", err);
+  }
+
+  // 4. Update localStorage admin payments & student active courses
+  if (typeof window !== 'undefined') {
+    try {
+      const local = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      const updated = local.map((p: any) => p.id === paymentId ? { ...p, status: 'approved', verified_at: now, verified_by: verifiedBy } : p);
+      if (!updated.some((p: any) => p.id === paymentId)) {
+        updated.unshift({ ...payment, status: 'approved', verified_at: now, verified_by: verifiedBy });
+      }
+      localStorage.setItem('lafole_admin_payments', JSON.stringify(updated));
+
+      // If active student in this browser is the one approved, activate course access immediately
+      const activeEmail = localStorage.getItem('lafole_verified_email') || '';
+      if (activeEmail && activeEmail.toLowerCase() === payment.student_email.toLowerCase()) {
+        const storedIds = JSON.parse(localStorage.getItem('lafole_enrolled_course_ids') || '[]');
+        const nextIds = Array.from(new Set([...storedIds, payment.course_id]));
+        localStorage.setItem('lafole_enrolled_course_ids', JSON.stringify(nextIds));
+      }
+    } catch {}
+  }
+
+  // 5. Trigger email dispatch via backend server
+  try {
+    await fetch('/api/admin/approve-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentId,
+        studentEmail: payment.student_email,
+        studentName: payment.student_name,
+        courseTitle: payment.course_title,
+        courseId: payment.course_id,
+        verifiedBy
+      })
+    });
+  } catch (err) {
+    console.info("Backend approve-payment notification note:", err);
+  }
+
+  return {
+    success: true,
+    message: `Payment verified! Enrollment in ${payment.course_title} has been activated.`,
+    payment
+  };
+}
+
+/**
+ * Rejects a payment
+ */
+export async function rejectAdminPayment(
+  paymentId: string,
+  verifiedBy: string = 'Abdifatah Jama (Admin)',
+  reason: string = 'Payment could not be verified'
+): Promise<{ success: boolean; message: string; payment?: PaymentTableRecord }> {
+  const payments = await getAdminPayments();
+  const payment = payments.find(p => p.id === paymentId);
+
+  if (!payment) {
+    return { success: false, message: 'Payment record not found' };
+  }
+
+  const now = new Date().toISOString();
+  payment.status = 'rejected';
+  payment.verified_at = now;
+  payment.verified_by = verifiedBy;
+
+  try {
+    await setDoc(doc(db, 'payments', paymentId), {
+      ...payment,
+      status: 'rejected',
+      verified_at: now,
+      verified_by: verifiedBy,
+      rejectionReason: reason
+    }, { merge: true });
+
+    if (payment.order_id) {
+      await setDoc(doc(db, 'orders', payment.order_id), {
+        status: 'rejected',
+        lastUpdated: now
+      }, { merge: true });
+    }
+  } catch (err) {
+    console.warn("Could not mark payment as rejected in Firestore:", err);
+  }
+
+  // Update localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const local = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      const updated = local.map((p: any) => p.id === paymentId ? { ...p, status: 'rejected', verified_at: now, verified_by: verifiedBy } : p);
+      localStorage.setItem('lafole_admin_payments', JSON.stringify(updated));
+    } catch {}
+  }
+
+  try {
+    await fetch('/api/admin/reject-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId, reason, verifiedBy })
+    });
+  } catch {}
+
+  return {
+    success: true,
+    message: `Payment rejected.`,
+    payment
+  };
 }
 

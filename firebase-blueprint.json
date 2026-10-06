@@ -5,6 +5,18 @@
       "description": "Client enrollment registration details and email verification status",
       "type": "object",
       "properties": {
+        "student_id": {
+          "type": "string",
+          "description": "Student unique identifier or email"
+        },
+        "payment_id": {
+          "type": "string",
+          "description": "Associated payment transaction identifier"
+        },
+        "enrolled_at": {
+          "type": "string",
+          "description": "ISO timestamp of course enrollment"
+        },
         "fullName": {
           "type": "string",
           "description": "Full name of student"
@@ -40,8 +52,45 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending_verification", "verified", "enrolled"],
+          "enum": ["pending", "active", "suspended", "completed", "pending_verification", "verified", "enrolled", "pending_payment_verification"],
           "description": "Current enrollment and verification status"
+        },
+        "orderReference": {
+          "type": "string",
+          "description": "Auto-incrementing order reference, e.g. LA-2026-0001"
+        },
+        "manualCurrency": {
+          "type": "string",
+          "enum": ["EVC Plus", "eDahab", "ZAAD"],
+          "description": "Manual mobile money provider"
+        },
+        "recipientNumber": {
+          "type": "string",
+          "description": "Merchant phone number, e.g. +252 61 9290900"
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Merchant recipient name, e.g. Abdifatah Jama"
+        },
+        "transactionRef": {
+          "type": "string",
+          "description": "Payment reference code or SMS ID"
+        },
+        "amountPaid": {
+          "type": "number",
+          "description": "Amount paid by student"
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "Date payment was completed"
+        },
+        "senderPhone": {
+          "type": "string",
+          "description": "Student sending phone number"
+        },
+        "screenshotUrl": {
+          "type": "string",
+          "description": "Optional payment screenshot data"
         },
         "verificationToken": {
           "type": "string",
@@ -166,12 +215,63 @@
         }
       },
       "required": ["email", "code"]
+    },
+    "payment": {
+      "title": "Payment",
+      "description": "Student payment transactions submitted for manual or automated verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Payment ID" },
+        "order_id": { "type": "string", "description": "Associated order ID" },
+        "student_id": { "type": "string", "description": "Student user ID or email" },
+        "student_name": { "type": "string", "description": "Full name of student" },
+        "student_email": { "type": "string", "description": "Email address of student" },
+        "course_id": { "type": "string", "description": "Enrolled course identifier" },
+        "course_title": { "type": "string", "description": "Title of course" },
+        "amount": { "type": "number", "description": "Payment amount in USD" },
+        "currency": { "type": "string", "description": "Currency code" },
+        "payment_method": { "type": "string", "description": "Payment method, e.g. EVC Plus, eDahab, ZAAD" },
+        "transaction_reference": { "type": "string", "description": "Transaction reference code" },
+        "sender_phone": { "type": "string", "description": "Sender mobile phone number" },
+        "proof_url": { "type": "string", "description": "URL or base64 preview of payment receipt screenshot" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "paid"], "description": "Verification status" },
+        "submitted_at": { "type": "string", "description": "Submission ISO timestamp" },
+        "verified_at": { "type": "string", "description": "Verification ISO timestamp" },
+        "verified_by": { "type": "string", "description": "Admin email who verified" }
+      },
+      "required": ["order_id", "student_id", "course_id", "amount", "payment_method", "transaction_reference", "status"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "Student purchase orders for course enrollments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Order ID" },
+        "student_id": { "type": "string", "description": "Student ID or email" },
+        "student_name": { "type": "string", "description": "Student name" },
+        "course_id": { "type": "string", "description": "Course identifier" },
+        "course_title": { "type": "string", "description": "Course title" },
+        "amount": { "type": "number", "description": "Order amount" },
+        "currency": { "type": "string", "description": "Currency code" },
+        "status": { "type": "string", "enum": ["pending", "awaiting_verification", "paid", "rejected", "cancelled", "completed"], "description": "Order status" },
+        "created_at": { "type": "string", "description": "Creation timestamp" },
+        "paid_at": { "type": "string", "description": "Payment approval timestamp" }
+      },
+      "required": ["student_id", "course_id", "amount", "status"]
     }
   },
   "firestore": {
     "/enrollments/{enrollmentId}": {
       "schema": "enrollment",
       "description": "Student enrollments and details created upon checkout"
+    },
+    "/payments/{paymentId}": {
+      "schema": "payment",
+      "description": "Manual mobile payment records for admin verification"
+    },
+    "/orders/{orderId}": {
+      "schema": "order",
+      "description": "Course purchase orders for students"
     },
     "/users/{userId}": {
       "schema": "user",

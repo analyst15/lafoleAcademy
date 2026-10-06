@@ -30,9 +30,33 @@ import {
   X
 } from 'lucide-react';
 import { Course } from '../types';
-import { saveClientDetailsAndInitiateVerification, resendVerificationEmail, signInStudent, db } from '../lib/firebase';
+import { saveClientDetailsAndInitiateVerification, resendVerificationEmail, signInStudent, db, recordPaymentOrderEnrollment } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { COUNTRIES, CountryOption } from '../data/countries';
+import { ManualPaymentSection } from './ManualPaymentSection';
+import { PendingVerificationModal, PendingOrderDetails } from './PendingVerificationModal';
+
+const getNextOrderRef = (): string => {
+  if (typeof window === 'undefined') return 'LA-2026-0001';
+  try {
+    const saved = localStorage.getItem('lafole_manual_payment_order_seq');
+    const seq = saved ? parseInt(saved, 10) : 1;
+    const num = isNaN(seq) || seq < 1 ? 1 : seq;
+    return `LA-2026-${String(num).padStart(4, '0')}`;
+  } catch {
+    return 'LA-2026-0001';
+  }
+};
+
+const incrementOrderRef = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const saved = localStorage.getItem('lafole_manual_payment_order_seq');
+    const seq = saved ? parseInt(saved, 10) : 1;
+    const num = isNaN(seq) || seq < 1 ? 1 : seq;
+    localStorage.setItem('lafole_manual_payment_order_seq', String(num + 1));
+  } catch {}
+};
 
 interface CheckoutPageProps {
   course: Course;
@@ -103,17 +127,29 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   // Selected Country object helper
   const selectedCountry = COUNTRIES.find((c) => c.code === selectedCountryCode);
 
-  // Payment Method State: 'mobile_money' | 'card'
-  const [paymentMethod, setPaymentMethod] = useState<'mobile_money' | 'card'>('card');
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<'mobile_money' | 'card'>('mobile_money');
   const [mobileProvider, setMobileProvider] = useState<'evc' | 'zaad' | 'edahab' | 'sahal' | 'ebirr'>('evc');
   const [payerPhone, setPayerPhone] = useState('');
   const [transactionRef, setTransactionRef] = useState('');
   
-  // Card state
+  // Card state (greyed out / unavailable for now)
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
   const [cardName, setCardName] = useState('');
+
+  // Manual Mobile Payment Processing State
+  const [manualCurrency, setManualCurrency] = useState<'EVC Plus' | 'eDahab' | 'ZAAD'>('EVC Plus');
+  const [orderReference, setOrderReference] = useState<string>(() => getNextOrderRef());
+  const [paymentReference, setPaymentReference] = useState<string>('');
+  const [amountPaid, setAmountPaid] = useState<string>('');
+  const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [senderPhone, setSenderPhone] = useState<string>('');
+  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [pendingOrderDetails, setPendingOrderDetails] = useState<PendingOrderDetails | null>(null);
+  const [isPendingOrderModalOpen, setIsPendingOrderModalOpen] = useState(false);
 
   // Firestore & Email Verification State
   const [isSavingDetails, setIsSavingDetails] = useState(false);
@@ -163,15 +199,195 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const totalLessons = course.modules?.reduce((acc, m) => acc + m.lessons.length, 0) || course.totalLessonsCount || 51;
   const finalPrice = Math.max(0, currentTotalBeforePromo - promoDiscount);
 
+  // Sync amountPaid with finalPrice
+  useEffect(() => {
+    if (finalPrice > 0) {
+      setAmountPaid((prev) => (!prev || prev === '0' || prev === '20' || prev === '25' ? String(finalPrice) : prev));
+    }
+  }, [finalPrice]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const copyMerchantCode = (text: string) => {
+  const copyMerchantCode = (text: string, label?: string) => {
     if (typeof window !== 'undefined') {
       navigator.clipboard.writeText(text);
-      showToast(`Copied "${text}" to clipboard!`);
+      showToast(`Copied ${label ? label : text} to clipboard!`);
+    }
+  };
+
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPaymentScreenshot(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setScreenshotPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      showToast(`Screenshot attached: ${file.name}`);
+    }
+  };
+
+  const handleRemoveScreenshot = () => {
+    setPaymentScreenshot(null);
+    setScreenshotPreview(null);
+  };
+
+  // Manual payment submission handler:
+  // - Saves order to Firestore with status 'pending_payment_verification'
+  // - Keeps hasAccess: false (Student does NOT get access to course yet)
+  // - Increments order reference sequence (LA-2026-0001 -> LA-2026-0002)
+  // - Displays PENDING PAYMENT VERIFICATION modal
+  const handleManualPaymentSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!paymentReference.trim()) {
+      showToast('Please enter your Payment Reference');
+      return;
+    }
+    if (!amountPaid.trim()) {
+      showToast('Please enter the Amount Paid');
+      return;
+    }
+    if (!paymentDate.trim()) {
+      showToast('Please select the Payment Date');
+      return;
+    }
+    if (!senderPhone.trim()) {
+      showToast('Please enter your Sender Phone Number');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const buyerEmail = signedInUser?.email || email.trim() || 'student@lafole.so';
+      const buyerName = signedInUser?.name || fullName.trim() || 'Student';
+      const enrId = `enr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const currentRef = orderReference || getNextOrderRef();
+      const courseTitleToSave = cartDisplayItems.length > 1
+        ? `${cartDisplayItems.length} Enrolled Courses`
+        : (cartDisplayItems[0]?.title || course.title);
+      const courseIdToSave = cartDisplayItems.length > 1
+        ? cartDisplayItems.map((i: any) => i.courseId || i.id).join(', ')
+        : course.id;
+
+      try {
+        await recordPaymentOrderEnrollment({
+          paymentId: `pay_${Date.now()}_${paymentReference.replace(/[^a-zA-Z0-9]/g, '')}`,
+          orderId: `ord_${currentRef.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`,
+          enrollmentId: enrId,
+          studentId: buyerEmail.toLowerCase().trim(),
+          studentName: buyerName,
+          studentEmail: buyerEmail.toLowerCase().trim(),
+          courseId: courseIdToSave,
+          courseTitle: courseTitleToSave,
+          amount: finalPrice,
+          paymentMethod: manualCurrency,
+          transactionReference: paymentReference,
+          senderPhone: senderPhone,
+          proofUrl: screenshotPreview || ''
+        });
+
+        const enrRef = doc(db, 'enrollments', enrId);
+        await setDoc(enrRef, {
+          id: enrId,
+          orderReference: currentRef,
+          email: buyerEmail.toLowerCase().trim(),
+          fullName: buyerName,
+          phoneNumber: senderPhone || phoneNumber || '',
+          courseId: courseIdToSave,
+          courseTitle: courseTitleToSave,
+          amount: finalPrice,
+          amountPaid: amountPaid,
+          currency: 'USD',
+          manualCurrency: manualCurrency,
+          paymentMethod: manualCurrency,
+          paymentStatus: 'pending_verification',
+          transactionRef: paymentReference,
+          status: 'pending_payment_verification',
+          hasAccess: false,
+          emailVerified: !!signedInUser,
+          paymentDate: paymentDate,
+          senderPhone: senderPhone,
+          recipientNumber: '+252 61 9290900',
+          recipientName: 'Abdifatah Jama',
+          createdAt: new Date().toISOString(),
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+
+        const userDocId = buyerEmail.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '_');
+        await setDoc(doc(db, 'users', userDocId), {
+          lastEnrolledCourseId: courseIdToSave,
+          lastEnrolledCourseTitle: courseTitleToSave,
+          lastOrderReference: currentRef,
+          status: 'pending_payment_verification',
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.warn("Firestore save pending enrollment:", err);
+      }
+
+      if (typeof window !== 'undefined') {
+        const orderRecord = {
+          enrollmentId: enrId,
+          orderReference: currentRef,
+          email: buyerEmail.toLowerCase().trim(),
+          fullName: buyerName,
+          phoneNumber: senderPhone,
+          courseId: courseIdToSave,
+          courseTitle: courseTitleToSave,
+          amount: finalPrice,
+          amountPaid: amountPaid,
+          currency: 'USD',
+          paymentMethod: manualCurrency,
+          paymentStatus: 'pending_verification',
+          status: 'pending_payment_verification',
+          hasAccess: false,
+          paymentReference: paymentReference,
+          paymentDate: paymentDate,
+          senderPhone: senderPhone,
+          recipientNumber: '+252 61 9290900',
+          recipientName: 'Abdifatah Jama',
+          createdAt: new Date().toISOString()
+        };
+        localStorage.setItem('last_lafole_enrollment', JSON.stringify(orderRecord));
+
+        try {
+          const existing = JSON.parse(localStorage.getItem('lafole_pending_orders') || '[]');
+          localStorage.setItem('lafole_pending_orders', JSON.stringify([orderRecord, ...existing]));
+        } catch {}
+      }
+
+      const pendingDetails: PendingOrderDetails = {
+        orderReference: currentRef,
+        courseTitle: courseTitleToSave,
+        courseThumbnail: course.thumbnail,
+        manualCurrency: manualCurrency,
+        recipientNumber: '+252 61 9290900',
+        recipientName: 'Abdifatah Jama',
+        amountPaid: amountPaid.startsWith('$') ? amountPaid : `$${amountPaid}`,
+        paymentDate: paymentDate,
+        senderPhoneNumber: senderPhone,
+        paymentReference: paymentReference,
+        screenshotFileName: paymentScreenshot?.name || null,
+        screenshotPreview: screenshotPreview,
+        buyerName: buyerName,
+        buyerEmail: buyerEmail
+      };
+
+      incrementOrderRef();
+      setOrderReference(getNextOrderRef());
+
+      setPendingOrderDetails(pendingDetails);
+      setIsPendingOrderModalOpen(true);
+      showToast('Payment submitted! Your order is PENDING PAYMENT VERIFICATION.');
+    } catch (err: any) {
+      showToast("Error submitting payment: " + (err?.message || "Please retry."));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -770,221 +986,28 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   </div>
                 ) : (
                   <>
-                    {/* PAYMENT METHOD SECTION */}
-                    <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        PAYMENT METHOD
-                      </div>
-
-                      {/* Option 1: Card */}
-                      <div
-                        onClick={() => setPaymentMethod('card')}
-                        className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
-                          paymentMethod === 'card'
-                            ? 'border-[#22C55E] bg-emerald-50/20 dark:bg-emerald-950/20'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="radio"
-                              name="signed_pay_method"
-                              checked={paymentMethod === 'card'}
-                              onChange={() => setPaymentMethod('card')}
-                              className="text-[#22C55E] focus:ring-[#22C55E] w-4 h-4 cursor-pointer"
-                            />
-                            <div>
-                              <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                                Master Card, Credit / Debit Card
-                              </div>
-                              <div className="text-[11px] text-slate-400 dark:text-slate-500">
-                                Visa, Mastercard, Amex, UnionPay
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Card brand badges */}
-                          <div className="flex items-center space-x-1">
-                            <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white font-extrabold text-[9px] tracking-wider">
-                              VISA
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded bg-amber-600 text-white font-extrabold text-[9px] tracking-wider">
-                              MC
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded bg-cyan-700 text-white font-extrabold text-[9px] tracking-wider">
-                              AMEX
-                            </span>
-                          </div>
-                        </div>
-
-                        {paymentMethod === 'card' && (
-                          <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
-                            <div>
-                              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                Card Number
-                              </label>
-                              <div className="relative flex items-center">
-                                <CreditCard className="w-4 h-4 text-slate-400 absolute left-3" />
-                                <input
-                                  type="text"
-                                  maxLength={19}
-                                  value={cardNumber}
-                                  onChange={(e) => setCardNumber(e.target.value)}
-                                  placeholder="4000 1234 5678 9010"
-                                  className="w-full pl-9 pr-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                  Expiry (MM/YY)
-                                </label>
-                                <input
-                                  type="text"
-                                  maxLength={5}
-                                  value={cardExpiry}
-                                  onChange={(e) => setCardExpiry(e.target.value)}
-                                  placeholder="MM/YY"
-                                  className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                  CVC
-                                </label>
-                                <input
-                                  type="password"
-                                  maxLength={4}
-                                  value={cardCvc}
-                                  onChange={(e) => setCardCvc(e.target.value)}
-                                  placeholder="123"
-                                  className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Option 2: Mobile Money (East Africa) */}
-                      <div
-                        onClick={() => setPaymentMethod('mobile_money')}
-                        className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
-                          paymentMethod === 'mobile_money'
-                            ? 'border-[#22C55E] bg-emerald-50/20 dark:bg-emerald-950/20'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="radio"
-                              name="signed_pay_method"
-                              checked={paymentMethod === 'mobile_money'}
-                              onChange={() => setPaymentMethod('mobile_money')}
-                              className="text-[#22C55E] focus:ring-[#22C55E] w-4 h-4 cursor-pointer"
-                            />
-                            <div>
-                              <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                                Evc, Zaad, eBirr, eDahab, &amp; Xawaalad
-                              </div>
-                              <div className="text-[11px] text-slate-400 dark:text-slate-500">
-                                Manual — admin confirms your payment
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Provider pill logos */}
-                          <div className="flex items-center space-x-1 flex-wrap gap-1">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-700 text-white font-bold text-[9px]">
-                              EVC
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded bg-blue-800 text-white font-bold text-[9px]">
-                              ZAAD
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded bg-amber-700 text-white font-bold text-[9px]">
-                              eDahab
-                            </span>
-                          </div>
-                        </div>
-
-                        {paymentMethod === 'mobile_money' && (
-                          <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                            <div className="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
-                              <div className="flex items-center justify-between">
-                                <span className="text-slate-500 dark:text-slate-400">Transfer Instructions:</span>
-                                <span className="font-mono font-bold text-[#22C55E]">${finalPrice}.00 USD</span>
-                              </div>
-                              <div className="flex items-center justify-between font-mono text-slate-800 dark:text-slate-200">
-                                <span>Merchant: +252 61 589 2041</span>
-                                <button
-                                  type="button"
-                                  onClick={() => copyMerchantCode('+252615892041')}
-                                  className="text-[#22C55E] hover:underline text-[11px] flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                  <span>Copy</span>
-                                </button>
-                              </div>
-                              <div className="text-[10px] text-slate-400">
-                                Dial *712*615892041*${finalPrice}# (or Telesom / eDahab equivalent)
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                  Sending Phone Number
-                                </label>
-                                <input
-                                  type="tel"
-                                  value={payerPhone}
-                                  onChange={(e) => setPayerPhone(e.target.value)}
-                                  placeholder="+252 61..."
-                                  className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                  Transaction Ref / SMS Code
-                                </label>
-                                <input
-                                  type="text"
-                                  value={transactionRef}
-                                  onChange={(e) => setTransactionRef(e.target.value)}
-                                  placeholder="e.g. TXN12345"
-                                  className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Call to action button */}
-                    <button
-                      id="btn-complete-enrollment"
-                      type="button"
-                      onClick={handleCompleteSignedPayment}
-                      disabled={isProcessing}
-                      className="w-full py-3.5 px-6 bg-[#22C55E] hover:bg-[#16A34A] disabled:opacity-60 text-white font-bold text-sm sm:text-base rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                          <span>Processing enrollment...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="w-4 h-4" />
-                          <span>Complete enrollment</span>
-                        </>
-                      )}
-                    </button>
+                    {/* MANUAL PAYMENT SECTION (Card Greyed Out, EVC/eDahab/ZAAD Manual Active) */}
+                    <ManualPaymentSection
+                      finalPrice={finalPrice}
+                      orderReference={orderReference}
+                      manualCurrency={manualCurrency}
+                      setManualCurrency={setManualCurrency}
+                      paymentReference={paymentReference}
+                      setPaymentReference={setPaymentReference}
+                      amountPaid={amountPaid}
+                      setAmountPaid={setAmountPaid}
+                      paymentDate={paymentDate}
+                      setPaymentDate={setPaymentDate}
+                      senderPhone={senderPhone}
+                      setSenderPhone={setSenderPhone}
+                      paymentScreenshot={paymentScreenshot}
+                      screenshotPreview={screenshotPreview}
+                      onScreenshotChange={handleScreenshotChange}
+                      onRemoveScreenshot={handleRemoveScreenshot}
+                      onSubmitPayment={handleManualPaymentSubmit}
+                      isProcessing={isProcessing}
+                      onCopy={copyMerchantCode}
+                    />
 
                     <div className="pt-1 text-center">
                       <button
@@ -1052,6 +1075,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             </div>
           </div>
         )}
+        {/* Pending Payment Verification Modal */}
+        <PendingVerificationModal
+          isOpen={isPendingOrderModalOpen}
+          order={pendingOrderDetails}
+          onNavigateToDashboard={onNavigateToLogin ? onNavigateToLogin : onBackToHome}
+          onBackToHome={onBackToHome}
+          onCopy={copyMerchantCode}
+        />
       </div>
     );
   }
@@ -1585,271 +1616,28 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                     </div>
                   )}
                   
-                  {/* Payment Method Selector Tabs */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    
-                    {/* Option 1: Mobile Money (Evc / Zaad / eBirr / eDahab) */}
-                    <div
-                      onClick={() => setPaymentMethod('mobile_money')}
-                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start space-x-3 ${
-                        paymentMethod === 'mobile_money'
-                          ? 'border-[#22C55E] bg-emerald-50/20 dark:bg-emerald-950/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        checked={paymentMethod === 'mobile_money'}
-                        onChange={() => setPaymentMethod('mobile_money')}
-                        className="mt-1 text-[#22C55E] focus:ring-[#22C55E]"
-                      />
-                      <div>
-                        <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center space-x-1.5">
-                          <Smartphone className="w-4 h-4 text-[#22C55E]" />
-                          <span>Mobile Money (East Africa)</span>
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          EVC Plus, Zaad, eBirr, eDahab, Sahal
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Option 2: Credit / Debit Card */}
-                    <div
-                      onClick={() => setPaymentMethod('card')}
-                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start space-x-3 ${
-                        paymentMethod === 'card'
-                          ? 'border-[#22C55E] bg-emerald-50/20 dark:bg-emerald-950/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        checked={paymentMethod === 'card'}
-                        onChange={() => setPaymentMethod('card')}
-                        className="mt-1 text-[#22C55E] focus:ring-[#22C55E]"
-                      />
-                      <div>
-                        <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center space-x-1.5">
-                          <CreditCard className="w-4 h-4 text-[#22C55E]" />
-                          <span>Credit / Debit Card</span>
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          Visa, Mastercard, Amex, UnionPay
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Payment Details Form */}
-                  {paymentMethod === 'mobile_money' ? (
-                    <div className="space-y-4 bg-slate-50 dark:bg-slate-800/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                      
-                      {/* Mobile Provider Switcher */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                          Select your mobile money service:
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { id: 'evc', label: 'EVC Plus (Hormuud)' },
-                            { id: 'zaad', label: 'Zaad (Telesom)' },
-                            { id: 'edahab', label: 'eDahab (Somtel)' },
-                            { id: 'sahal', label: 'Sahal (Golis)' },
-                            { id: 'ebirr', label: 'eBirr (CBE)' }
-                          ].map(item => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => setMobileProvider(item.id as any)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                                mobileProvider === item.id
-                                  ? 'bg-[#22C55E] text-white shadow-2xs'
-                                  : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
-                              }`}
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Instructions Card */}
-                      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
-                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                          <span>Quick Transfer Instructions:</span>
-                          <span className="text-xs font-mono font-bold text-[#22C55E] bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
-                            Amount: ${price} USD
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-lg text-xs gap-2">
-                          <div>
-                            <span className="text-slate-500">Merchant Number / Account:</span>{' '}
-                            <span className="font-mono font-bold text-slate-900 dark:text-white">+252 61 589 2041</span>{' '}
-                            <span className="text-[11px] text-slate-400">(Lafole Academy)</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => copyMerchantCode('+252615892041')}
-                            className="text-xs text-[#22C55E] hover:underline flex items-center space-x-1 cursor-pointer font-medium"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy number</span>
-                          </button>
-                        </div>
-
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {mobileProvider === 'evc' && 'Dial *712*615892041*$20# on your phone, then enter your transaction reference below.'}
-                          {mobileProvider === 'zaad' && 'Send $20 to Telesom Merchant 892041 / +252 63 489 2041, then enter the reference.'}
-                          {mobileProvider === 'edahab' && 'Send $20 to eDahab Account 5892041, then enter the transaction reference code.'}
-                          {mobileProvider === 'sahal' && 'Transfer $20 via Sahal to account 615892041, then input the confirmation ID.'}
-                          {mobileProvider === 'ebirr' && 'Send equivalent Birr to Lafole CBE account, then enter the deposit code.'}
-                        </div>
-                      </div>
-
-                      {/* Sender inputs */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                            Your Sending Phone Number
-                          </label>
-                          <input
-                            type="tel"
-                            required
-                            value={payerPhone}
-                            onChange={(e) => setPayerPhone(e.target.value)}
-                            placeholder={selectedCountry ? `${selectedCountry.dialCode} 61 123 4567` : "e.g. 61 123 4567"}
-                            className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                            Transaction Reference / SMS Code
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={transactionRef}
-                            onChange={(e) => setTransactionRef(e.target.value)}
-                            placeholder="e.g. TXN948123 or Reference ID"
-                            className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                          />
-                        </div>
-                      </div>
-
-                    </div>
-                  ) : (
-                    /* Card Form */
-                    <div className="space-y-4 bg-slate-50 dark:bg-slate-800/60 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-                      
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                          Cardholder Name
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={cardName}
-                          onChange={(e) => setCardName(e.target.value)}
-                          placeholder="Name on card"
-                          className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                          Card Number
-                        </label>
-                        <div className="relative flex items-center">
-                          <CreditCard className="w-4 h-4 text-slate-400 absolute left-3" />
-                          <input
-                            type="text"
-                            required
-                            maxLength={19}
-                            value={cardNumber}
-                            onChange={(e) => setCardNumber(e.target.value)}
-                            placeholder="4000 1234 5678 9010"
-                            className="w-full pl-10 pr-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3.5">
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                            Expires (MM/YY)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            maxLength={5}
-                            value={cardExpiry}
-                            onChange={(e) => setCardExpiry(e.target.value)}
-                            placeholder="MM/YY"
-                            className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                            CVC / CVV
-                          </label>
-                          <input
-                            type="password"
-                            required
-                            maxLength={4}
-                            value={cardCvc}
-                            onChange={(e) => setCardCvc(e.target.value)}
-                            placeholder="123"
-                            className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22C55E]"
-                          />
-                        </div>
-                      </div>
-
-                    </div>
-                  )}
-
-                  {/* Pricing Summary */}
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>Course Tuition ({course.title.slice(0, 30)}...)</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">${price}.00</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>Digital Certificate &amp; Materials</span>
-                      <span className="font-semibold text-[#22C55E]">FREE</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm sm:text-base font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-100 dark:border-slate-800">
-                      <span>Total Due Today:</span>
-                      <span className="text-xl text-[#22C55E]">${price}.00 USD</span>
-                    </div>
-                  </div>
-
-                  {/* Submit CTA */}
-                  <button
-                    type="submit"
-                    disabled={isProcessing}
-                    className="w-full py-3.5 px-6 bg-[#22C55E] hover:bg-[#16A34A] disabled:opacity-50 text-white font-bold text-sm sm:text-base rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer"
-                  >
-                    {isProcessing ? (
-                      <span className="flex items-center space-x-2">
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        <span>Verifying &amp; Enrolling...</span>
-                      </span>
-                    ) : (
-                      <>
-                        <span>Complete Enrollment for ${price}</span>
-                        <ArrowRight className="w-5 h-5" />
-                      </>
-                    )}
-                  </button>
-
-                  <div className="text-center text-xs text-slate-400">
-                    Guaranteed instant classroom activation upon payment confirmation.
-                  </div>
+                  {/* MANUAL PAYMENT PROCESSING (Card Greyed Out, EVC/eDahab/ZAAD Manual Active) */}
+                  <ManualPaymentSection
+                    finalPrice={finalPrice}
+                    orderReference={orderReference}
+                    manualCurrency={manualCurrency}
+                    setManualCurrency={setManualCurrency}
+                    paymentReference={paymentReference}
+                    setPaymentReference={setPaymentReference}
+                    amountPaid={amountPaid}
+                    setAmountPaid={setAmountPaid}
+                    paymentDate={paymentDate}
+                    setPaymentDate={setPaymentDate}
+                    senderPhone={senderPhone}
+                    setSenderPhone={setSenderPhone}
+                    paymentScreenshot={paymentScreenshot}
+                    screenshotPreview={screenshotPreview}
+                    onScreenshotChange={handleScreenshotChange}
+                    onRemoveScreenshot={handleRemoveScreenshot}
+                    onSubmitPayment={handleManualPaymentSubmit}
+                    isProcessing={isProcessing}
+                    onCopy={copyMerchantCode}
+                  />
 
                 </form>
               )}
@@ -2049,6 +1837,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Pending Payment Verification Modal */}
+      <PendingVerificationModal
+        isOpen={isPendingOrderModalOpen}
+        order={pendingOrderDetails}
+        onNavigateToDashboard={onNavigateToLogin ? onNavigateToLogin : onBackToHome}
+        onBackToHome={onBackToHome}
+        onCopy={copyMerchantCode}
+      />
 
     </div>
   );

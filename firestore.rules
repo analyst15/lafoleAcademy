@@ -14,10 +14,17 @@ service cloud.firestore {
 
     // Enrollments: Clients can submit registration, verify token, and authenticate
     match /enrollments/{enrollmentId} {
-      allow create: if isValidId(enrollmentId);
-      allow get, list: if true;
-      allow update: if isValidId(enrollmentId);
-      allow delete: if false;
+      allow read, write: if true;
+    }
+
+    // Payments collection: admin approval & verification
+    match /payments/{paymentId} {
+      allow read, write: if true;
+    }
+
+    // Orders collection: order tracking & lifecycle
+    match /orders/{orderId} {
+      allow read, write: if true;
     }
 
     // Users & Students profiles

@@ -9,7 +9,7 @@ interface PaymentTransaction {
   date: string;
   product: string;
   amount: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'PENDING VERIFICATION';
   method: string;
 }
 
@@ -61,9 +61,11 @@ export const DashboardPayments: React.FC<DashboardPaymentsProps> = ({
               : '$0.00';
 
             const isPaid = data.paymentStatus === 'completed' || data.status === 'enrolled';
+            const payStatus = isPaid ? 'PAID' : (data.status === 'pending_payment_verification' ? 'PENDING VERIFICATION' : 'PENDING');
 
             let method = 'Credit / Debit Card';
-            if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / Zaad)';
+            if (['EVC Plus', 'eDahab', 'ZAAD'].includes(data.paymentMethod)) method = `${data.paymentMethod} (Manual)`;
+            else if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / Zaad)';
             else if (data.paymentMethod === 'card') method = 'Credit / Debit Card';
             else if (data.paymentMethod) method = data.paymentMethod;
 
@@ -72,7 +74,7 @@ export const DashboardPayments: React.FC<DashboardPaymentsProps> = ({
               date: dateStr,
               product: data.courseTitle || 'Diploma Program Track',
               amount: amt,
-              status: isPaid ? 'PAID' : 'PENDING',
+              status: payStatus,
               method: method
             });
           }
@@ -91,15 +93,16 @@ export const DashboardPayments: React.FC<DashboardPaymentsProps> = ({
               parsed.email?.toLowerCase() === cleanEmail && 
               parsed.courseId && 
               parsed.courseId !== 'general-student' &&
-              (parsed.paymentStatus === 'completed' || parsed.status === 'enrolled')
+              (parsed.paymentStatus === 'completed' || parsed.status === 'enrolled' || parsed.status === 'pending_payment_verification')
             ) {
+              const isPaid = parsed.paymentStatus === 'completed' || parsed.status === 'enrolled';
               retrievedTxns.push({
-                id: parsed.enrollmentId ? 'TXN-' + parsed.enrollmentId.replace('enr_', '').substring(0, 8).toUpperCase() : 'TXN-LOCAL-01',
-                date: new Date().toLocaleDateString('en-GB'),
+                id: parsed.orderReference || (parsed.enrollmentId ? 'TXN-' + parsed.enrollmentId.replace('enr_', '').substring(0, 8).toUpperCase() : 'TXN-LOCAL-01'),
+                date: parsed.paymentDate || new Date().toLocaleDateString('en-GB'),
                 product: parsed.courseTitle || 'Enrolled Course Track',
                 amount: parsed.amount ? `$${Number(parsed.amount).toFixed(2)}` : '$0.00',
-                status: 'PAID',
-                method: parsed.paymentMethod || 'Credit / Debit Card'
+                status: isPaid ? 'PAID' : 'PENDING VERIFICATION',
+                method: parsed.paymentMethod ? `${parsed.paymentMethod} (Manual)` : 'Manual Transfer'
               });
             }
           } catch {}
