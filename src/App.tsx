@@ -49,13 +49,15 @@ import { ProgressDashboard } from './components/ProgressDashboard';
 import { InstructorStudio } from './components/InstructorStudio';
 import { CertificateModal } from './components/CertificateModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { AdminAuthGate, AdminAuthSession } from './components/admin/AdminAuthGate';
 import { DashboardLayout, DashboardTab } from './components/dashboard/DashboardLayout';
 import { 
   getStudentEnrolledCourseIds, 
   getStudentProfile, 
   updateStudentProfile,
   validateStudentVerificationStatus,
-  signOutStudent
+  signOutStudent,
+  getLiveCoursesFromFirestore
 } from './lib/firebase';
 import { formatStudentDisplayName } from './utils/userUtils';
 
@@ -185,6 +187,19 @@ export default function App() {
     return () => window.removeEventListener('lafole_cart_updated', handleCartSync);
   }, []);
 
+  // Sync courses dynamically from Firestore (respecting Admin CRUD additions, updates and removals)
+  useEffect(() => {
+    getLiveCoursesFromFirestore()
+      .then((liveList) => {
+        if (liveList && liveList.length > 0) {
+          setCourses(liveList);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not sync live courses on mount:", err);
+      });
+  }, []);
+
   const [studentProfile] = useState<StudentProfile>(INITIAL_STUDENT_PROFILE);
   const [lessonProgressMap, setLessonProgressMap] = useState<Record<string, LessonProgress>>({});
   const [courseProgress, setCourseProgress] = useState<CourseProgress>({
@@ -203,8 +218,16 @@ export default function App() {
   // Session inactivity timeout: 15 minutes of inactivity for account safety
   const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
-  // Validation in progress state (checking database for verified flag)
-  const [isValidatingAuth, setIsValidatingAuth] = useState<boolean>(false);
+  // Admin authentication session state
+  const [adminSession, setAdminSession] = useState<AdminAuthSession | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem('lafole_admin_auth') || localStorage.getItem('lafole_admin_auth');
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return null;
+  });
 
   // Email verification session state (triggers post-verification navbar with initials & My Dashboard)
   const [isEmailVerified, setIsEmailVerified] = useState<boolean>(() => {
@@ -419,7 +442,6 @@ export default function App() {
   }, [navigateToCart]);
 
   // Dedicated Dashboard Navigation supporting /dashboard and all subroutes
-  // Validates the student's status with the Firestore database rather than relying solely on local storage state
   const navigateToDashboard = useCallback((tab: DashboardTab = 'dashboard', overrideEmail?: string) => {
     const emailToValidate = (
       overrideEmail || 
@@ -427,6 +449,40 @@ export default function App() {
       (typeof window !== 'undefined' ? localStorage.getItem('lafole_verified_email') : '') || 
       ''
     ).trim().toLowerCase();
+
+    const switchTabDirectly = () => {
+      setDashboardTab(tab);
+      setActiveView('dashboard');
+      if (typeof window !== 'undefined') {
+        const tabPaths: Record<DashboardTab, string> = {
+          'dashboard': '/dashboard',
+          'mylearning': '/dashboard/mylearning',
+          'learning-path': '/dashboard/learning-path',
+          'certificates': '/dashboard/certificates',
+          'books': '/dashboard/books',
+          'orders': '/dashboard/orders',
+          'cyber-labs': '/dashboard/cyber-labs',
+          'networking-labs': '/dashboard/networking-labs',
+          'payments': '/dashboard/payments',
+          'downloads': '/dashboard/downloads',
+          'settings': '/dashboard/settings',
+          'help': '/dashboard/help'
+        };
+        const targetPath = tabPaths[tab] || '/dashboard';
+        if (window.location.pathname !== targetPath) {
+          window.history.pushState({ view: 'dashboard', tab }, '', targetPath);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+
+    // If student is already verified in state or localStorage, navigate directly with zero popup
+    if (isEmailVerified || (typeof window !== 'undefined' && localStorage.getItem('lafole_email_verified') === 'true')) {
+      if (!isEmailVerified) setIsEmailVerified(true);
+      if (emailToValidate && !verifiedEmail) setVerifiedEmail(emailToValidate);
+      switchTabDirectly();
+      return;
+    }
 
     if (!emailToValidate) {
       setIsEmailVerified(false);
@@ -442,8 +498,7 @@ export default function App() {
       return;
     }
 
-    setIsValidatingAuth(true);
-
+    // Check status silently in background without showing any blocking popup dialog
     validateStudentVerificationStatus(emailToValidate)
       .then((res) => {
         if (res.verified) {
@@ -460,45 +515,13 @@ export default function App() {
             localStorage.setItem('lafole_verified_email', emailToValidate);
             localStorage.setItem('lafole_last_active_time', String(Date.now()));
           }
-
-          setDashboardTab(tab);
-          setActiveView('dashboard');
-          if (typeof window !== 'undefined') {
-            const tabPaths: Record<DashboardTab, string> = {
-              'dashboard': '/dashboard',
-              'mylearning': '/dashboard/mylearning',
-              'learning-path': '/dashboard/learning-path',
-              'certificates': '/dashboard/certificates',
-              'books': '/dashboard/books',
-              'orders': '/dashboard/orders',
-              'cyber-labs': '/dashboard/cyber-labs',
-              'networking-labs': '/dashboard/networking-labs',
-              'payments': '/dashboard/payments',
-              'downloads': '/dashboard/downloads',
-              'settings': '/dashboard/settings',
-              'help': '/dashboard/help'
-            };
-            const targetPath = tabPaths[tab] || '/dashboard';
-            if (window.location.pathname !== targetPath) {
-              window.history.pushState({ view: 'dashboard', tab }, '', targetPath);
-            }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
+          switchTabDirectly();
         } else {
-          // Rejection from database: user is NOT verified!
           setIsEmailVerified(false);
           if (typeof window !== 'undefined') {
             localStorage.removeItem('lafole_email_verified');
-            const lastEnroll = localStorage.getItem('last_lafole_enrollment');
-            if (lastEnroll) {
-              try {
-                const parsed = JSON.parse(lastEnroll);
-                parsed.emailVerified = false;
-                localStorage.setItem('last_lafole_enrollment', JSON.stringify(parsed));
-              } catch {}
-            }
           }
-          showToast('Verification check: Your account is not verified in our database yet. Please click the verification link sent to your email.', 'info');
+          showToast('Please sign in to access your student dashboard.', 'info');
           setActiveView('login');
           if (typeof window !== 'undefined') {
             window.history.pushState({ view: 'login' }, '', '/login');
@@ -509,13 +532,9 @@ export default function App() {
       .catch((err) => {
         console.warn("Could not validate status with database:", err);
         setIsEmailVerified(false);
-        showToast('Could not validate student status with database. Please try signing in.', 'info');
         setActiveView('login');
-      })
-      .finally(() => {
-        setIsValidatingAuth(false);
       });
-  }, [verifiedEmail]);
+  }, [verifiedEmail, isEmailVerified]);
 
   const navigateTo = useCallback((view: AppView) => {
     if (view === 'cart') {
@@ -988,21 +1007,6 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2 px-4 py-3 bg-slate-950 text-white rounded-2xl shadow-2xl border border-slate-800 animate-slideUp">
           <Sparkles className="w-4 h-4 text-[#22C55E] flex-shrink-0" />
           <span className="text-xs sm:text-sm font-medium">{toastMessage.text}</span>
-        </div>
-      )}
-
-      {/* Validating Student Status Loading Overlay */}
-      {isValidatingAuth && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl space-y-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center mx-auto text-[#22C55E]">
-              <ShieldCheck className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Validating Account Verification</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Verifying your status with the database before opening your dashboard...</p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1662,7 +1666,7 @@ export default function App() {
       )}
 
       {/* Access Denied Guard if accessing /dashboard while unverified in database */}
-      {activeView === 'dashboard' && !isEmailVerified && !isValidatingAuth && (
+      {activeView === 'dashboard' && !isEmailVerified && (
         <div className="flex-1 flex items-center justify-center p-6 min-h-[60vh]">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center shadow-lg space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto text-amber-500">
@@ -1735,19 +1739,43 @@ export default function App() {
         </main>
       )}
 
-      {/* View 13: Admin Payments Dashboard (/admin) */}
+      {/* View 13: Admin Portal (/admin) - Authenticated */}
       {activeView === 'admin' && (
-        <AdminDashboard
-          onBackToHome={() => navigateTo('home')}
-          onNavigateToCourse={(cId) => {
-            const found = courses.find(c => c.id === cId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cId);
-            if (found) navigateToCourse(found);
-            else navigateTo('catalog');
-          }}
-          onNavigateToStudentDashboard={() => navigateToDashboard('mylearning')}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        />
+        adminSession ? (
+          <AdminDashboard
+            onBackToHome={() => navigateTo('home')}
+            onNavigateToCourse={(cId) => {
+              const found = courses.find(c => c.id === cId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cId);
+              if (found) navigateToCourse(found);
+              else navigateTo('catalog');
+            }}
+            onNavigateToStudentDashboard={() => navigateToDashboard('mylearning')}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+            adminSession={adminSession}
+            onSignOutAdmin={() => {
+              setAdminSession(null);
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('lafole_admin_auth');
+                localStorage.removeItem('lafole_admin_auth');
+              }
+              showToast('Signed out of Administrator Portal.', 'info');
+              navigateTo('home');
+            }}
+            courses={courses}
+            onCoursesChange={(updatedCourses) => setCourses(updatedCourses)}
+          />
+        ) : (
+          <AdminAuthGate
+            currentUserEmail={verifiedEmail}
+            currentUserName={verifiedFullName}
+            onAuthenticated={(sess) => {
+              setAdminSession(sess);
+              showToast(`Welcome back, ${sess.name}! Administrator session active.`, 'success');
+            }}
+            onBackToHome={() => navigateTo('home')}
+          />
+        )
       )}
 
       {/* Quick Search Modal (Cmd+K) */}

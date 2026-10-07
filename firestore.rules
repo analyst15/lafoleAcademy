@@ -32,11 +32,20 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /admins/{adminId} {
+      allow read, write: if true;
+    }
+
     match /students/{studentId} {
       allow read, write: if true;
     }
 
     match /password_resets/{resetId} {
+      allow read, write: if true;
+    }
+
+    // Courses collection: public read, admin write
+    match /courses/{courseId} {
       allow read, write: if true;
     }
 

@@ -7,6 +7,7 @@ import {
   getDoc, 
   getDocFromServer, 
   updateDoc, 
+  deleteDoc,
   query, 
   where, 
   getDocs,
@@ -24,6 +25,8 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { formatNameFromEmail } from '../utils/userUtils';
+import { Course } from '../types';
+import { INITIAL_COURSES } from '../data/courses';
 
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -1604,49 +1607,8 @@ export interface EnrollmentTableRecord {
   courseTitle?: string;
 }
 
-// Seed mock records strictly matching user brief:
-// 1. Ahmed Ali | English A1 / Digital Marketing | $25 | EVC Plus | 8H72K9 | Pending
-// 2. Mohamed Hassan | English A1 | $15 | eDahab | ED83492 | Pending
-export const DEFAULT_SEED_PAYMENTS: PaymentTableRecord[] = [
-  {
-    id: 'pay_ahmed_ali_8h72k9',
-    order_id: 'ord_la_2026_0001',
-    student_id: 'ahmed.ali@example.com',
-    student_name: 'Ahmed Ali',
-    student_email: 'ahmed.ali@example.com',
-    course_id: 'english-a1',
-    course_title: 'Digital Marketing',
-    amount: 25,
-    currency: 'USD',
-    payment_method: 'EVC Plus',
-    transaction_reference: '8H72K9',
-    sender_phone: '252619290900',
-    proof_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
-    status: 'pending',
-    submitted_at: '2026-10-06T14:32:00.000Z',
-    verified_at: null,
-    verified_by: null
-  },
-  {
-    id: 'pay_mohamed_hassan_ed83492',
-    order_id: 'ord_la_2026_0002',
-    student_id: 'mohamed.hassan@example.com',
-    student_name: 'Mohamed Hassan',
-    student_email: 'mohamed.hassan@example.com',
-    course_id: 'english-a1',
-    course_title: 'English A1',
-    amount: 15,
-    currency: 'USD',
-    payment_method: 'eDahab',
-    transaction_reference: 'ED83492',
-    sender_phone: '252658930121',
-    proof_url: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&auto=format&fit=crop&q=80',
-    status: 'pending',
-    submitted_at: '2026-10-06T12:15:00.000Z',
-    verified_at: null,
-    verified_by: null
-  }
-];
+// Real payments list - sample seeded data has been removed
+export const DEFAULT_SEED_PAYMENTS: PaymentTableRecord[] = [];
 
 /**
  * Creates records in 'payments', 'orders', and 'enrollments' collections matching the exact database schema
@@ -1748,27 +1710,42 @@ export async function recordPaymentOrderEnrollment(params: {
 export async function getAdminPayments(): Promise<PaymentTableRecord[]> {
   const paymentMap = new Map<string, PaymentTableRecord>();
 
-  // Add default seed payments first
-  DEFAULT_SEED_PAYMENTS.forEach(p => paymentMap.set(p.id, { ...p }));
+  // Helper to identify and reject legacy mock seed records
+  const isSeedRecord = (p: Partial<PaymentTableRecord>) => {
+    if (!p) return true;
+    const id = p.id || '';
+    const ref = (p.transaction_reference || '').toUpperCase();
+    const email = (p.student_email || '').toLowerCase();
+    return (
+      id === 'pay_ahmed_ali_8h72k9' ||
+      id === 'pay_mohamed_hassan_ed83492' ||
+      ref === '8H72K9' ||
+      ref === 'ED83492' ||
+      email === 'ahmed.ali@example.com' ||
+      email === 'mohamed.hassan@example.com'
+    );
+  };
 
-  // Load from localStorage cache
+  // Clean and filter localStorage cache
   if (typeof window !== 'undefined') {
     try {
       const local = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
       if (Array.isArray(local)) {
-        local.forEach((p: PaymentTableRecord) => {
-          if (p && p.id) paymentMap.set(p.id, p);
+        const cleaned = local.filter((p: PaymentTableRecord) => p && p.id && !isSeedRecord(p));
+        localStorage.setItem('lafole_admin_payments', JSON.stringify(cleaned));
+        cleaned.forEach((p: PaymentTableRecord) => {
+          paymentMap.set(p.id, p);
         });
       }
     } catch {}
   }
 
-  // Load from Firestore
+  // Load from Firestore payments collection (real data)
   try {
     const snap = await getDocs(collection(db, 'payments'));
     snap.forEach((docSnap) => {
       const data = docSnap.data() as PaymentTableRecord;
-      if (data && data.id) {
+      if (data && data.id && !isSeedRecord(data)) {
         paymentMap.set(data.id, {
           ...data,
           id: data.id || docSnap.id
@@ -1785,28 +1762,37 @@ export async function getAdminPayments(): Promise<PaymentTableRecord[]> {
     enrSnap.forEach((docSnap) => {
       const d = docSnap.data();
       if (d.transactionRef && (d.manualCurrency || ['EVC Plus', 'eDahab', 'ZAAD'].includes(d.paymentMethod))) {
-        const payId = `pay_${docSnap.id}`;
-        if (!paymentMap.has(payId)) {
-          const amt = typeof d.amount === 'number' ? d.amount : parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 25;
-          paymentMap.set(payId, {
-            id: payId,
-            order_id: d.orderReference ? `ord_${d.orderReference}` : `ord_${docSnap.id}`,
-            student_id: d.email || docSnap.id,
-            student_name: d.fullName || 'Student',
-            student_email: d.email || 'student@lafole.so',
-            course_id: d.courseId || 'english-a1',
-            course_title: d.courseTitle || 'English Beginners Level (A1-A2)',
-            amount: amt,
-            currency: 'USD',
-            payment_method: d.manualCurrency || d.paymentMethod || 'EVC Plus',
-            transaction_reference: d.transactionRef,
-            sender_phone: d.senderPhone || d.phoneNumber || '252619290900',
-            proof_url: d.screenshotUrl || '',
-            status: d.status === 'enrolled' || d.status === 'active' ? 'approved' : 'pending',
-            submitted_at: d.createdAt || new Date().toISOString(),
-            verified_at: d.verifiedAt || null,
-            verified_by: null
-          });
+        const txRef = String(d.transactionRef).trim();
+        // Check if this transaction reference or order is already represented in paymentMap
+        const alreadyExists = Array.from(paymentMap.values()).some(
+          p => (p.transaction_reference && p.transaction_reference.toLowerCase() === txRef.toLowerCase()) ||
+               (d.orderReference && p.order_id && p.order_id.toLowerCase().includes(String(d.orderReference).toLowerCase()))
+        );
+
+        if (!alreadyExists) {
+          const payId = `pay_${docSnap.id}`;
+          if (!paymentMap.has(payId)) {
+            const amt = typeof d.amount === 'number' ? d.amount : parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 25;
+            paymentMap.set(payId, {
+              id: payId,
+              order_id: d.orderReference ? `ord_${d.orderReference}` : `ord_${docSnap.id}`,
+              student_id: d.email || docSnap.id,
+              student_name: d.fullName || 'Student',
+              student_email: d.email || 'student@lafole.so',
+              course_id: d.courseId || 'english-a1',
+              course_title: d.courseTitle || 'English Beginners Level (A1-A2)',
+              amount: amt,
+              currency: 'USD',
+              payment_method: d.manualCurrency || d.paymentMethod || 'EVC Plus',
+              transaction_reference: txRef,
+              sender_phone: d.senderPhone || d.phoneNumber || '',
+              proof_url: d.screenshotUrl || '',
+              status: d.status === 'enrolled' || d.status === 'active' ? 'approved' : 'pending',
+              submitted_at: d.createdAt || new Date().toISOString(),
+              verified_at: d.verifiedAt || null,
+              verified_by: null
+            });
+          }
         }
       }
     });
@@ -2057,5 +2043,190 @@ export async function rejectAdminPayment(
     message: `Payment rejected.`,
     payment
   };
+}
+
+// ============================================================================
+// COURSES CRUD MANAGEMENT (SYNC WITH FIRESTORE & FRONTEND)
+// ============================================================================
+
+/**
+ * Fetches all active courses, merging default catalog with Firestore courses collection
+ * and honoring deletions and updates.
+ */
+export async function getLiveCoursesFromFirestore(): Promise<Course[]> {
+  const coursesMap = new Map<string, Course>();
+  const deletedSet = new Set<string>();
+
+  // 1. Seed base catalog
+  INITIAL_COURSES.forEach(c => {
+    coursesMap.set(c.id, c);
+  });
+
+  // 2. Load cached local overrides & deletions
+  if (typeof window !== 'undefined') {
+    try {
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_courses') || '[]');
+      if (Array.isArray(deleted)) {
+        deleted.forEach(id => deletedSet.add(id));
+      }
+      const localCustom = JSON.parse(localStorage.getItem('lafole_custom_courses') || '[]');
+      if (Array.isArray(localCustom)) {
+        localCustom.forEach((c: Course) => {
+          if (c && c.id && !deletedSet.has(c.id)) {
+            coursesMap.set(c.id, c);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  // 3. Query Firestore courses collection for real-time persisted updates
+  try {
+    const snap = await getDocs(collection(db, 'courses'));
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data) {
+        if (data.isDeleted) {
+          deletedSet.add(docSnap.id);
+          coursesMap.delete(docSnap.id);
+        } else {
+          coursesMap.set(docSnap.id, {
+            ...data,
+            id: docSnap.id
+          } as Course);
+        }
+      }
+    });
+
+    // Update local storage caches with fresh Firestore state
+    if (typeof window !== 'undefined') {
+      const allActive = Array.from(coursesMap.values()).filter(c => !deletedSet.has(c.id));
+      localStorage.setItem('lafole_custom_courses', JSON.stringify(allActive));
+      localStorage.setItem('lafole_deleted_courses', JSON.stringify(Array.from(deletedSet)));
+    }
+  } catch (err) {
+    console.warn("Could not load courses from Firestore, using cached/initial catalog:", err);
+  }
+
+  // Filter out any deleted courses
+  const result = Array.from(coursesMap.values()).filter(c => !deletedSet.has(c.id));
+  return result;
+}
+
+/**
+ * Creates or updates a course in Firestore and local storage.
+ */
+export async function saveCourseToFirestore(course: Partial<Course>): Promise<{ success: boolean; course: Course }> {
+  const cleanId = (
+    course.id || 
+    `course-${course.title ? course.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : Date.now()}`
+  ).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+
+  const existingDefault = INITIAL_COURSES.find(c => c.id === cleanId);
+
+  const courseToSave: Course = {
+    id: cleanId,
+    title: (course.title || 'Untitled Course').trim(),
+    subtitle: (course.subtitle || 'Technical Mastery & Practical Training').trim(),
+    description: (course.description || 'Comprehensive practitioner-led training course.').trim(),
+    category: (course.category || 'English for Beginners').trim(),
+    level: course.level || 'Beginner',
+    instructor: {
+      name: course.instructor?.name || 'Abdifatah Jama',
+      role: course.instructor?.role || 'Lead Instructor',
+      avatar: course.instructor?.avatar || 'https://firebasestorage.googleapis.com/v0/b/keiyian-farm.firebasestorage.app/o/Thumbnails%2FYellow%20Black%20Modern%20Course%20YouTube%20Thumbnail.png?alt=media&token=58075f8e-7a43-420b-8ceb-62aaed33c422',
+      bio: course.instructor?.bio || 'Experienced practitioner and industry educator at Lafole Academy.'
+    },
+    thumbnail: course.thumbnail || existingDefault?.thumbnail || 'https://firebasestorage.googleapis.com/v0/b/keiyian-farm.firebasestorage.app/o/Thumbnails%2F1.png?alt=media&token=66f78e8f-faee-4d9a-acff-11bbf52273fc',
+    estimatedHours: Number(course.estimatedHours) || existingDefault?.estimatedHours || 12,
+    updatedAt: new Date().toISOString().split('T')[0],
+    tags: Array.isArray(course.tags) && course.tags.length > 0 ? course.tags : [course.title || 'Course', course.category || 'Academy'],
+    price: typeof course.price === 'number' ? course.price : 25,
+    originalPrice: typeof course.originalPrice === 'number' ? course.originalPrice : (typeof course.price === 'number' ? course.price * 2 : 50),
+    discountPercent: typeof course.discountPercent === 'number' ? course.discountPercent : 50,
+    totalLessonsCount: typeof course.totalLessonsCount === 'number' ? course.totalLessonsCount : (existingDefault?.totalLessonsCount || 24),
+    resources: course.resources || existingDefault?.resources || [],
+    modules: course.modules && course.modules.length > 0 ? course.modules : (existingDefault?.modules || [
+      {
+        id: `mod-${cleanId}-1`,
+        title: 'Module 1: Foundations & Fundamentals',
+        description: 'Core concepts, practical orientation, and introductory syllabus.',
+        lessons: [
+          {
+            id: `les-${cleanId}-1-1`,
+            moduleId: `mod-${cleanId}-1`,
+            title: 'Lesson 1: Course Orientation & Overview',
+            description: 'Introduction to curriculum structure, key outcomes, and study methodology.',
+            type: 'video',
+            durationMinutes: 15,
+            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+          }
+        ]
+      }
+    ])
+  };
+
+  // 1. Save to Firestore
+  try {
+    await setDoc(doc(db, 'courses', cleanId), {
+      ...courseToSave,
+      isDeleted: false
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Could not save course to Firestore (falling back to local cache):", err);
+  }
+
+  // 2. Update localStorage cache
+  if (typeof window !== 'undefined') {
+    try {
+      const local = JSON.parse(localStorage.getItem('lafole_custom_courses') || '[]');
+      const filtered = Array.isArray(local) ? local.filter((c: any) => c.id !== cleanId) : [];
+      filtered.unshift(courseToSave);
+      localStorage.setItem('lafole_custom_courses', JSON.stringify(filtered));
+
+      // Remove from deleted list if previously marked deleted
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_courses') || '[]');
+      if (Array.isArray(deleted)) {
+        localStorage.setItem('lafole_deleted_courses', JSON.stringify(deleted.filter((id: string) => id !== cleanId)));
+      }
+    } catch {}
+  }
+
+  return { success: true, course: courseToSave };
+}
+
+/**
+ * Deletes a course from Firestore and local cache.
+ */
+export async function deleteCourseFromFirestore(courseId: string): Promise<{ success: boolean; message: string }> {
+  // 1. Mark as deleted in Firestore
+  try {
+    await setDoc(doc(db, 'courses', courseId), {
+      id: courseId,
+      isDeleted: true,
+      deletedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Could not flag course as deleted in Firestore:", err);
+  }
+
+  // 2. Update localStorage cache
+  if (typeof window !== 'undefined') {
+    try {
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_courses') || '[]');
+      if (Array.isArray(deleted) && !deleted.includes(courseId)) {
+        deleted.push(courseId);
+        localStorage.setItem('lafole_deleted_courses', JSON.stringify(deleted));
+      }
+
+      const local = JSON.parse(localStorage.getItem('lafole_custom_courses') || '[]');
+      if (Array.isArray(local)) {
+        const filtered = local.filter((c: any) => c.id !== courseId);
+        localStorage.setItem('lafole_custom_courses', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
+  return { success: true, message: `Course "${courseId}" removed.` };
 }
 

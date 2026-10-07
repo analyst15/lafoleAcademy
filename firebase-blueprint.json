@@ -258,9 +258,35 @@
         "paid_at": { "type": "string", "description": "Payment approval timestamp" }
       },
       "required": ["student_id", "course_id", "amount", "status"]
+    },
+    "course": {
+      "title": "Course",
+      "description": "Academy course offerings and technical curriculum",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique course identifier" },
+        "title": { "type": "string", "description": "Course title" },
+        "subtitle": { "type": "string", "description": "Course subtitle" },
+        "description": { "type": "string", "description": "Full description of course" },
+        "category": { "type": "string", "description": "Subject category" },
+        "level": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"], "description": "Course difficulty level" },
+        "price": { "type": "number", "description": "Current price in USD" },
+        "originalPrice": { "type": "number", "description": "Original price before discount" },
+        "discountPercent": { "type": "number", "description": "Discount percentage" },
+        "estimatedHours": { "type": "number", "description": "Estimated completion hours" },
+        "totalLessonsCount": { "type": "number", "description": "Total lesson count" },
+        "thumbnail": { "type": "string", "description": "Course thumbnail image URL" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Course tags" },
+        "updatedAt": { "type": "string", "description": "Last updated date" }
+      },
+      "required": ["id", "title", "description", "category", "level", "price"]
     }
   },
   "firestore": {
+    "/courses/{courseId}": {
+      "schema": "course",
+      "description": "Lafole Academy courses available in catalog"
+    },
     "/enrollments/{enrollmentId}": {
       "schema": "enrollment",
       "description": "Student enrollments and details created upon checkout"
