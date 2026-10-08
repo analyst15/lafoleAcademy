@@ -6,7 +6,7 @@ import { createServer as createViteServer } from "vite";
 // Helper to guarantee sender display name is always "Lafole Academy"
 function getFormattedSender(fromEnv?: string): string {
   if (!fromEnv || !fromEnv.trim()) {
-    return "Lafole Academy <onboarding@resend.dev>";
+    return "Lafole Academy <noreply@lafole.net>";
   }
   const trimmed = fromEnv.trim();
   if (trimmed.includes("<") && trimmed.includes(">")) {
