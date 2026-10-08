@@ -210,3 +210,16 @@ export interface EnrollmentRecord {
   status: EnrollmentStatus;
   enrolled_at: string;
 }
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'superadmin' | 'admin';
+  department?: string;
+  password?: string;
+  status: 'active' | 'suspended';
+  createdAt: string;
+  lastLoginAt?: string | null;
+  createdBy?: string;
+}

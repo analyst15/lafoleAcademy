@@ -25,7 +25,7 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { formatNameFromEmail } from '../utils/userUtils';
-import { Course } from '../types';
+import { Course, AdminUser } from '../types';
 import { INITIAL_COURSES } from '../data/courses';
 
 // Initialize Firebase App
@@ -2229,4 +2229,228 @@ export async function deleteCourseFromFirestore(courseId: string): Promise<{ suc
 
   return { success: true, message: `Course "${courseId}" removed.` };
 }
+
+// ============================================================================
+// ADMIN USERS MANAGEMENT (SUPER ADMIN ACCESS CONTROL)
+// ============================================================================
+
+export const DEFAULT_SUPER_ADMIN_EMAIL = 'techanalyst41@gmail.com';
+
+const DEFAULT_SUPER_ADMIN: AdminUser = {
+  id: 'techanalyst41_gmail_com',
+  name: 'Alex ASIAGO',
+  email: 'techanalyst41@gmail.com',
+  role: 'superadmin',
+  department: 'Executive Administration',
+  password: 'admin',
+  status: 'active',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  lastLoginAt: '2026-10-08T06:00:00.000Z',
+  createdBy: 'System Root'
+};
+
+const INITIAL_ADMIN_USERS: AdminUser[] = [
+  DEFAULT_SUPER_ADMIN,
+  {
+    id: 'admin_lafole_so',
+    name: 'Abdifatah Jama',
+    email: 'admin@lafole.so',
+    role: 'admin',
+    department: 'Curriculum & Instruction',
+    password: 'admin',
+    status: 'active',
+    createdAt: '2026-01-15T00:00:00.000Z',
+    lastLoginAt: '2026-10-07T14:30:00.000Z',
+    createdBy: 'techanalyst41@gmail.com'
+  },
+  {
+    id: 'admissions_lafole_net',
+    name: 'Khadar Hassan',
+    email: 'admissions@lafole.net',
+    role: 'admin',
+    department: 'Admissions & Finance',
+    password: 'admin',
+    status: 'active',
+    createdAt: '2026-02-01T00:00:00.000Z',
+    lastLoginAt: '2026-10-06T10:15:00.000Z',
+    createdBy: 'techanalyst41@gmail.com'
+  }
+];
+
+export async function getAdminUsersFromFirestore(): Promise<AdminUser[]> {
+  const usersMap = new Map<string, AdminUser>();
+  const deletedSet = new Set<string>();
+
+  // 1. Seed base admins
+  INITIAL_ADMIN_USERS.forEach(u => usersMap.set(u.email.toLowerCase(), u));
+
+  // 2. Load cached local overrides & deletions
+  if (typeof window !== 'undefined') {
+    try {
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_admins') || '[]');
+      if (Array.isArray(deleted)) {
+        deleted.forEach(em => deletedSet.add(em.toLowerCase()));
+      }
+      const local = JSON.parse(localStorage.getItem('lafole_admin_users') || '[]');
+      if (Array.isArray(local)) {
+        local.forEach((u: AdminUser) => {
+          if (u && u.email && !deletedSet.has(u.email.toLowerCase())) {
+            usersMap.set(u.email.toLowerCase(), u);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  // 3. Query Firestore admins collection
+  try {
+    const snap = await getDocs(collection(db, 'admins'));
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data && data.email) {
+        const em = data.email.toLowerCase();
+        if (data.isDeleted) {
+          deletedSet.add(em);
+          usersMap.delete(em);
+        } else {
+          usersMap.set(em, {
+            id: docSnap.id,
+            name: data.name || data.fullName || 'Administrator',
+            email: data.email,
+            role: data.role === 'superadmin' || em === DEFAULT_SUPER_ADMIN_EMAIL ? 'superadmin' : 'admin',
+            department: data.department || 'Administration',
+            password: data.password || 'admin',
+            status: data.status === 'suspended' ? 'suspended' : 'active',
+            createdAt: data.createdAt || new Date().toISOString(),
+            lastLoginAt: data.lastLoginAt || null,
+            createdBy: data.createdBy || 'Super Admin'
+          });
+        }
+      }
+    });
+
+    if (typeof window !== 'undefined') {
+      const allActive = Array.from(usersMap.values()).filter(u => !deletedSet.has(u.email.toLowerCase()));
+      localStorage.setItem('lafole_admin_users', JSON.stringify(allActive));
+      localStorage.setItem('lafole_deleted_admins', JSON.stringify(Array.from(deletedSet)));
+    }
+  } catch (err) {
+    console.warn("Could not query admins from Firestore, using local cache:", err);
+  }
+
+  // Ensure the primary Super Admin is always guaranteed active and superadmin
+  const superAdmin = usersMap.get(DEFAULT_SUPER_ADMIN_EMAIL);
+  if (!superAdmin) {
+    usersMap.set(DEFAULT_SUPER_ADMIN_EMAIL, DEFAULT_SUPER_ADMIN);
+  } else {
+    superAdmin.role = 'superadmin';
+    superAdmin.status = 'active';
+  }
+
+  return Array.from(usersMap.values()).filter(u => !deletedSet.has(u.email.toLowerCase()));
+}
+
+export async function saveAdminUserToFirestore(
+  adminData: Partial<AdminUser>,
+  savedBy: string = 'Super Admin'
+): Promise<{ success: boolean; user: AdminUser; message: string }> {
+  const cleanEmail = (adminData.email || '').trim().toLowerCase();
+  if (!cleanEmail) {
+    throw new Error('Valid administrator email address is required.');
+  }
+
+  const cleanId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+  const isSuper = cleanEmail === DEFAULT_SUPER_ADMIN_EMAIL || adminData.role === 'superadmin';
+
+  const userToSave: AdminUser = {
+    id: cleanId,
+    name: (adminData.name || 'Administrator').trim(),
+    email: cleanEmail,
+    role: isSuper ? 'superadmin' : 'admin',
+    department: (adminData.department || 'Administration').trim(),
+    password: adminData.password || 'admin',
+    status: adminData.status || 'active',
+    createdAt: adminData.createdAt || new Date().toISOString(),
+    lastLoginAt: adminData.lastLoginAt || null,
+    createdBy: adminData.createdBy || savedBy
+  };
+
+  // 1. Save to Firestore
+  try {
+    await setDoc(doc(db, 'admins', cleanId), {
+      ...userToSave,
+      fullName: userToSave.name,
+      isDeleted: false,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Could not save admin to Firestore:", err);
+  }
+
+  // 2. Save to localStorage cache
+  if (typeof window !== 'undefined') {
+    try {
+      const local = JSON.parse(localStorage.getItem('lafole_admin_users') || '[]');
+      const filtered = Array.isArray(local) ? local.filter((u: AdminUser) => u.email.toLowerCase() !== cleanEmail) : [];
+      filtered.unshift(userToSave);
+      localStorage.setItem('lafole_admin_users', JSON.stringify(filtered));
+
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_admins') || '[]');
+      if (Array.isArray(deleted)) {
+        localStorage.setItem('lafole_deleted_admins', JSON.stringify(deleted.filter((em: string) => em.toLowerCase() !== cleanEmail)));
+      }
+    } catch {}
+  }
+
+  return { 
+    success: true, 
+    user: userToSave, 
+    message: `Administrator "${userToSave.name}" successfully registered.` 
+  };
+}
+
+export async function deleteAdminUserFromFirestore(
+  adminEmail: string,
+  performedBy: string = 'Super Admin'
+): Promise<{ success: boolean; message: string }> {
+  const cleanEmail = adminEmail.trim().toLowerCase();
+  if (cleanEmail === DEFAULT_SUPER_ADMIN_EMAIL) {
+    return { success: false, message: 'Primary Super Admin account cannot be revoked or deleted.' };
+  }
+
+  const cleanId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+
+  // 1. Mark as deleted in Firestore
+  try {
+    await setDoc(doc(db, 'admins', cleanId), {
+      id: cleanId,
+      email: cleanEmail,
+      isDeleted: true,
+      deletedAt: new Date().toISOString(),
+      deletedBy: performedBy
+    }, { merge: true });
+  } catch (err) {
+    console.warn("Could not flag admin as deleted in Firestore:", err);
+  }
+
+  // 2. Update localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_admins') || '[]');
+      if (Array.isArray(deleted) && !deleted.includes(cleanEmail)) {
+        deleted.push(cleanEmail);
+        localStorage.setItem('lafole_deleted_admins', JSON.stringify(deleted));
+      }
+
+      const local = JSON.parse(localStorage.getItem('lafole_admin_users') || '[]');
+      if (Array.isArray(local)) {
+        const filtered = local.filter((u: AdminUser) => u.email.toLowerCase() !== cleanEmail);
+        localStorage.setItem('lafole_admin_users', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
+  return { success: true, message: `Administrator access for "${cleanEmail}" revoked.` };
+}
+
 

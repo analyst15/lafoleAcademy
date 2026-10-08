@@ -23,6 +23,7 @@ import {
   Moon,
   ChevronRight,
   Eye,
+  EyeOff,
   Check,
   Copy,
   LogOut,
@@ -35,7 +36,13 @@ import {
   Plus,
   Edit,
   Trash2,
-  Tag
+  Tag,
+  UserCog,
+  Crown,
+  KeyRound,
+  ShieldAlert,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import {
   PaymentTableRecord,
@@ -43,13 +50,19 @@ import {
   approveAdminPayment,
   rejectAdminPayment,
   saveCourseToFirestore,
-  deleteCourseFromFirestore
+  deleteCourseFromFirestore,
+  getAdminUsersFromFirestore,
+  saveAdminUserToFirestore,
+  deleteAdminUserFromFirestore,
+  DEFAULT_SUPER_ADMIN_EMAIL
 } from '../../lib/firebase';
 import { PaymentDetailModal } from './PaymentDetailModal';
 import { CourseFormModal } from './CourseFormModal';
 import { DeleteCourseModal } from './DeleteCourseModal';
+import { AdminUserFormModal } from './AdminUserFormModal';
+import { DeleteAdminUserModal } from './DeleteAdminUserModal';
 import { AdminAuthSession } from './AdminAuthGate';
-import { Course } from '../../types';
+import { Course, AdminUser } from '../../types';
 import { getAll93Courses } from '../../data/catalog93';
 
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/keiyian-farm.firebasestorage.app/o/Lafole%2FLogo-02.png?alt=media&token=a877d4d0-4c4e-43f4-bb92-b9cce99580ef";
@@ -84,7 +97,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedPayment, setSelectedPayment] = useState<PaymentTableRecord | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeSidebarItem, setActiveSidebarItem] = useState<'payments' | 'orders' | 'courses' | 'students' | 'settings'>('payments');
+  const [activeSidebarItem, setActiveSidebarItem] = useState<'payments' | 'orders' | 'courses' | 'students' | 'users' | 'settings'>('payments');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
 
@@ -96,10 +109,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const list = await getAdminPayments();
+      const [list, admins] = await Promise.all([
+        getAdminPayments().catch(() => []),
+        getAdminUsersFromFirestore().catch(() => [])
+      ]);
       setPayments(list);
+      setAdminUsersList(admins);
     } catch (err) {
-      console.warn("Could not load payments:", err);
+      console.warn("Could not load dashboard data:", err);
       setPayments([]);
     } finally {
       setIsLoading(false);
@@ -263,6 +280,145 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       showToast('Course successfully deleted from catalog and front end.');
     }
   };
+
+  // Super Admin Privilege Check (Single Super Admin control)
+  const isSuperAdmin = useMemo(() => {
+    if (!adminSession) return false;
+    return (
+      adminSession.role === 'superadmin' ||
+      adminSession.email?.toLowerCase() === DEFAULT_SUPER_ADMIN_EMAIL.toLowerCase()
+    );
+  }, [adminSession]);
+
+  // Admin Users state & management
+  const [adminUsersList, setAdminUsersList] = useState<AdminUser[]>([]);
+  const [isAdminUsersLoading, setIsAdminUsersLoading] = useState(false);
+  const [adminUserSearch, setAdminUserSearch] = useState('');
+  const [adminUserRoleFilter, setAdminUserRoleFilter] = useState<'all' | 'superadmin' | 'admin'>('all');
+  const [adminUserStatusFilter, setAdminUserStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
+  const [revealedPasswordEmail, setRevealedPasswordEmail] = useState<string | null>(null);
+
+  const [isAdminUserModalOpen, setIsAdminUserModalOpen] = useState(false);
+  const [adminUserToEdit, setAdminUserToEdit] = useState<AdminUser | null>(null);
+  const [isDeleteAdminUserModalOpen, setIsDeleteAdminUserModalOpen] = useState(false);
+  const [adminUserToDelete, setAdminUserToDelete] = useState<AdminUser | null>(null);
+
+  const loadAdminUsers = async () => {
+    setIsAdminUsersLoading(true);
+    try {
+      const list = await getAdminUsersFromFirestore();
+      setAdminUsersList(list);
+    } catch (err) {
+      console.warn("Could not load admin users:", err);
+    } finally {
+      setIsAdminUsersLoading(false);
+    }
+  };
+
+  const handleOpenAddAdminUser = () => {
+    if (!isSuperAdmin) {
+      showToast(`Access Restricted: Only Super Admin (${DEFAULT_SUPER_ADMIN_EMAIL}) can add dashboard users.`);
+      return;
+    }
+    setAdminUserToEdit(null);
+    setIsAdminUserModalOpen(true);
+  };
+
+  const handleOpenEditAdminUser = (user: AdminUser, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isSuperAdmin) {
+      showToast(`Access Restricted: Only Super Admin (${DEFAULT_SUPER_ADMIN_EMAIL}) can edit dashboard users.`);
+      return;
+    }
+    setAdminUserToEdit(user);
+    setIsAdminUserModalOpen(true);
+  };
+
+  const handleOpenDeleteAdminUser = (user: AdminUser, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isSuperAdmin) {
+      showToast(`Access Restricted: Only Super Admin (${DEFAULT_SUPER_ADMIN_EMAIL}) can revoke dashboard users.`);
+      return;
+    }
+    if (user.email.toLowerCase() === DEFAULT_SUPER_ADMIN_EMAIL.toLowerCase()) {
+      showToast('The primary root Super Admin account cannot be revoked.');
+      return;
+    }
+    setAdminUserToDelete(user);
+    setIsDeleteAdminUserModalOpen(true);
+  };
+
+  const handleToggleAdminUserStatus = async (user: AdminUser, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isSuperAdmin) {
+      showToast('Only the Super Admin can toggle user account status.');
+      return;
+    }
+    if (user.email.toLowerCase() === DEFAULT_SUPER_ADMIN_EMAIL.toLowerCase()) {
+      showToast('Cannot suspend the primary root Super Admin.');
+      return;
+    }
+    const newStatus = user.status === 'active' ? 'suspended' : 'active';
+    try {
+      const res = await saveAdminUserToFirestore(
+        { ...user, status: newStatus },
+        adminSession?.email || 'Super Admin'
+      );
+      if (res.success) {
+        setAdminUsersList(prev => prev.map(u => u.email.toLowerCase() === user.email.toLowerCase() ? res.user : u));
+        showToast(`User ${user.name} is now ${newStatus === 'active' ? 'Active' : 'Suspended'}.`);
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update user status.');
+    }
+  };
+
+  const handleSaveAdminUser = async (userData: Partial<AdminUser>) => {
+    const res = await saveAdminUserToFirestore(userData, adminSession?.email || 'Super Admin');
+    if (res.success) {
+      const isExisting = adminUsersList.some(u => u.email.toLowerCase() === res.user.email.toLowerCase());
+      let updated: AdminUser[];
+      if (isExisting) {
+        updated = adminUsersList.map(u => u.email.toLowerCase() === res.user.email.toLowerCase() ? res.user : u);
+      } else {
+        updated = [res.user, ...adminUsersList];
+      }
+      setAdminUsersList(updated);
+      showToast(res.message);
+    }
+  };
+
+  const handleDeleteAdminUser = async (email: string) => {
+    const res = await deleteAdminUserFromFirestore(email, adminSession?.email || 'Super Admin');
+    if (res.success) {
+      setAdminUsersList(prev => prev.filter(u => u.email.toLowerCase() !== email.toLowerCase()));
+      showToast(res.message);
+    } else {
+      showToast(res.message);
+    }
+  };
+
+  const filteredAdminUsers = useMemo(() => {
+    return adminUsersList.filter(u => {
+      if (adminUserRoleFilter !== 'all' && u.role !== adminUserRoleFilter) return false;
+      if (adminUserStatusFilter !== 'all' && u.status !== adminUserStatusFilter) return false;
+      if (!adminUserSearch.trim()) return true;
+      const q = adminUserSearch.toLowerCase();
+      return (
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.department && u.department.toLowerCase().includes(q))
+      );
+    });
+  }, [adminUsersList, adminUserRoleFilter, adminUserStatusFilter, adminUserSearch]);
+
+  const adminUserStats = useMemo(() => {
+    const total = adminUsersList.length;
+    const superAdmins = adminUsersList.filter(u => u.role === 'superadmin').length;
+    const active = adminUsersList.filter(u => u.status === 'active').length;
+    const suspended = adminUsersList.filter(u => u.status === 'suspended').length;
+    return { total, superAdmins, active, suspended };
+  }, [adminUsersList]);
 
   // Derived unique students
   const studentsList = useMemo(() => {
@@ -574,6 +730,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </span>
                 </button>
 
+                {/* Users (Admin Team) */}
+                <button
+                  onClick={() => {
+                    setActiveSidebarItem('users');
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    activeSidebarItem === 'users'
+                      ? 'bg-[#22C55E]/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <UserCog className={`w-4 h-4 ${activeSidebarItem === 'users' ? 'text-[#22C55E]' : ''}`} />
+                    <span>Users</span>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
+                    {adminUsersList.length}
+                  </span>
+                </button>
+
                 {/* Settings */}
                 <button
                   onClick={() => {
@@ -634,6 +811,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {activeSidebarItem === 'orders' && 'Orders Management'}
                 {activeSidebarItem === 'courses' && 'Courses & Curriculum'}
                 {activeSidebarItem === 'students' && 'Students Directory'}
+                {activeSidebarItem === 'users' && 'Admin Users & Team Access'}
                 {activeSidebarItem === 'settings' && 'Administration Settings'}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -641,11 +819,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {activeSidebarItem === 'orders' && 'Registry of student course enrollments, invoices, and fulfillment records'}
                 {activeSidebarItem === 'courses' && 'Lafole Academy technical curriculum, diploma tracks, and lecture modules'}
                 {activeSidebarItem === 'students' && 'Verified student directory and course access entitlements'}
+                {activeSidebarItem === 'users' && 'Manage administrator dashboard credentials, role privileges, and team access'}
                 {activeSidebarItem === 'settings' && 'Academy payment gateway setups, merchant numbers, and security controls'}
               </p>
             </div>
 
             <div className="flex items-center space-x-2">
+              {activeSidebarItem === 'users' && isSuperAdmin && (
+                <button
+                  onClick={handleOpenAddAdminUser}
+                  className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-xs sm:text-sm shadow-sm transition-all hover:shadow-emerald-500/25 hover:scale-[1.02] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Admin User</span>
+                </button>
+              )}
               <button
                 onClick={loadData}
                 disabled={isLoading}
@@ -1020,46 +1208,280 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {/* TAB 3: COURSES */}
+          {/* TAB 3: COURSES (FULL CRUD MANAGEMENT) */}
           {activeSidebarItem === 'courses' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              {/* Header & Add Course Button */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Academy Course Catalog</h3>
-                  <p className="text-xs text-slate-500">Currently offering {allCourses.length} technical courses and professional diplomas.</p>
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 flex items-center justify-center">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                      Course Catalog & Curriculum Manager
+                    </h3>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Manage {coursesList.length} academy courses with live real-time synchronization across the student frontend catalog, cart, and dashboard.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleOpenAddCourse}
+                    className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-xs sm:text-sm shadow-sm transition-all hover:shadow-emerald-500/25 hover:scale-[1.02] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Course</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredCourses.slice(0, 30).map(c => (
-                  <div key={c.id} className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase">
-                        {c.category}
-                      </span>
-                      <span className="text-xs font-bold text-[#22C55E]">
-                        ${c.price}
-                      </span>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">{c.title}</h4>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">{c.description}</p>
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                      <span className="text-slate-500">{c.level}</span>
-                      {onNavigateToCourse && (
-                        <button
-                          onClick={() => onNavigateToCourse(c.id)}
-                          className="font-semibold text-emerald-600 hover:underline flex items-center space-x-1 cursor-pointer"
-                        >
-                          <span>Preview</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Total Courses</span>
+                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white">{courseStats.total}</div>
+                </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/60 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-emerald-600 tracking-wider">Active Subjects</span>
+                  <div className="text-2xl font-black font-mono text-emerald-600">{courseStats.categoriesCount}</div>
+                </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-blue-600 tracking-wider">Total Lessons</span>
+                  <div className="text-2xl font-black font-mono text-blue-600">{courseStats.totalLessons}</div>
+                </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-purple-600 tracking-wider">Avg Course Price</span>
+                  <div className="text-2xl font-black font-mono text-purple-600">${courseStats.avgPrice}</div>
+                </div>
               </div>
+
+              {/* Search & Filters Toolbar */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex flex-col md:flex-row gap-3">
+                  {/* Search Input */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search courses by title, subject, instructor name, or tag..."
+                      value={courseSearch}
+                      onChange={(e) => {
+                        setCourseSearch(e.target.value);
+                        setVisibleCourseCount(24);
+                      }}
+                      className="w-full pl-9 pr-9 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white"
+                    />
+                    {courseSearch && (
+                      <button
+                        onClick={() => setCourseSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Filter */}
+                  <div className="w-full md:w-56">
+                    <select
+                      value={courseCategoryFilter}
+                      onChange={(e) => {
+                        setCourseCategoryFilter(e.target.value);
+                        setVisibleCourseCount(24);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      <option value="all">All Subjects ({coursesList.length})</option>
+                      {courseCategories.map(cat => (
+                        <option key={cat} value={cat}>
+                          {cat} ({coursesList.filter(c => c.category === cat).length})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Level Filter */}
+                  <div className="w-full md:w-44">
+                    <select
+                      value={courseLevelFilter}
+                      onChange={(e) => {
+                        setCourseLevelFilter(e.target.value);
+                        setVisibleCourseCount(24);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      <option value="all">All Difficulty Levels</option>
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                  </div>
+
+                  {/* Clear Filters Button if any active */}
+                  {(courseSearch || courseCategoryFilter !== 'all' || courseLevelFilter !== 'all') && (
+                    <button
+                      onClick={() => {
+                        setCourseSearch('');
+                        setCourseCategoryFilter('all');
+                        setCourseLevelFilter('all');
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
+                  <span>
+                    Showing <strong className="text-slate-900 dark:text-white">{Math.min(filteredCourses.length, visibleCourseCount)}</strong> of <strong className="text-slate-900 dark:text-white">{filteredCourses.length}</strong> filtered courses ({coursesList.length} total)
+                  </span>
+                </div>
+              </div>
+
+              {/* Courses Grid */}
+              {filteredCourses.length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white">No courses found</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      No courses match your current search query or filter criteria.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center space-x-3 pt-2">
+                    <button
+                      onClick={() => {
+                        setCourseSearch('');
+                        setCourseCategoryFilter('all');
+                        setCourseLevelFilter('all');
+                      }}
+                      className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      Clear Search & Filters
+                    </button>
+                    <button
+                      onClick={handleOpenAddCourse}
+                      className="px-4 py-2 rounded-xl bg-[#22C55E] text-white text-xs font-bold hover:bg-[#16A34A] transition-colors cursor-pointer"
+                    >
+                      + Add New Course
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredCourses.slice(0, visibleCourseCount).map(c => (
+                    <div 
+                      key={c.id} 
+                      className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-emerald-500/40 transition-all flex flex-col overflow-hidden"
+                    >
+                      {/* Thumbnail & Overlays */}
+                      <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                        <img
+                          src={c.thumbnail || 'https://firebasestorage.googleapis.com/v0/b/keiyian-farm.firebasestorage.app/o/Thumbnails%2F1.png?alt=media&token=66f78e8f-faee-4d9a-acff-11bbf52273fc'}
+                          alt={c.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = 'https://firebasestorage.googleapis.com/v0/b/keiyian-farm.firebasestorage.app/o/Thumbnails%2F1.png?alt=media&token=66f78e8f-faee-4d9a-acff-11bbf52273fc';
+                          }}
+                        />
+                        <div className="absolute top-2.5 left-2.5 flex items-center space-x-1.5 flex-wrap gap-1">
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-xs text-white uppercase tracking-wider shadow-xs">
+                            {c.category}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500 text-white uppercase tracking-wider shadow-xs">
+                            {c.level}
+                          </span>
+                        </div>
+                        <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-xl bg-slate-950/85 backdrop-blur-xs text-white font-mono font-bold text-xs flex items-center space-x-1.5 shadow-sm">
+                          <span className="text-emerald-400">${c.price}</span>
+                          {c.originalPrice && c.originalPrice > c.price && (
+                            <span className="text-[10px] line-through text-slate-400 font-normal">
+                              ${c.originalPrice}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                        <div className="space-y-1.5">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {c.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                            {c.description || c.subtitle}
+                          </p>
+                        </div>
+
+                        {/* Metadata & Actions */}
+                        <div className="space-y-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                            <span className="truncate max-w-[140px] font-medium text-slate-700 dark:text-slate-300">
+                              👤 {c.instructor?.name || 'Abdifatah Jama'}
+                            </span>
+                            <div className="flex items-center space-x-2 text-[11px] font-mono">
+                              <span>⏱️ {c.estimatedHours || 12}h</span>
+                              <span>•</span>
+                              <span>📚 {c.totalLessonsCount || 20} lessons</span>
+                            </div>
+                          </div>
+
+                          {/* Full CRUD Actions Toolbar */}
+                          <div className="grid grid-cols-3 gap-2 pt-1">
+                            <button
+                              onClick={(e) => handleOpenEditCourse(c, e)}
+                              className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600 dark:hover:text-emerald-400 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer border border-transparent hover:border-emerald-500/30"
+                              title="Edit Course Details & Metadata"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              onClick={(e) => handleOpenDeleteCourse(c, e)}
+                              className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600 dark:hover:text-rose-400 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer border border-transparent hover:border-rose-500/30"
+                              title="Delete Course from Catalog"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+
+                            {onNavigateToCourse && (
+                              <button
+                                onClick={() => onNavigateToCourse(c.id)}
+                                className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-semibold text-xs transition-colors cursor-pointer border border-emerald-500/20"
+                                title="Preview Course on Front End"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Preview</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Load More Button */}
+              {filteredCourses.length > visibleCourseCount && (
+                <div className="text-center pt-4">
+                  <button
+                    onClick={() => setVisibleCourseCount(prev => prev + 24)}
+                    className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    Load More Courses ({filteredCourses.length - visibleCourseCount} remaining)
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1141,7 +1563,265 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {/* TAB 5: SETTINGS */}
+          {/* TAB 5: USERS (ADMIN ACCESS CONTROL & TEAM MANAGEMENT) */}
+          {activeSidebarItem === 'users' && (
+            <div className="space-y-6">
+              {/* Top Action Bar */}
+              {isSuperAdmin && (
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={handleOpenAddAdminUser}
+                    className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-xs sm:text-sm shadow-sm transition-all hover:shadow-emerald-500/25 hover:scale-[1.02] cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Admin User</span>
+                  </button>
+                </div>
+              )}
+
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Total Administrators</span>
+                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white">{adminUserStats.total}</div>
+                </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/60 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-purple-600 tracking-wider">Super Admins</span>
+                  <div className="text-2xl font-black font-mono text-purple-600">{adminUserStats.superAdmins}</div>
+                </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/60 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-emerald-600 tracking-wider">Active Accounts</span>
+                  <div className="text-2xl font-black font-mono text-emerald-600">{adminUserStats.active}</div>
+                </div>
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-amber-600 tracking-wider">Suspended</span>
+                  <div className="text-2xl font-black font-mono text-amber-600">{adminUserStats.suspended}</div>
+                </div>
+              </div>
+
+              {/* Search & Filter Toolbar */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search administrator by name, email, or department..."
+                      value={adminUserSearch}
+                      onChange={(e) => setAdminUserSearch(e.target.value)}
+                      className="w-full pl-9 pr-9 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white"
+                    />
+                    {adminUserSearch && (
+                      <button
+                        onClick={() => setAdminUserSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="w-full sm:w-44">
+                    <select
+                      value={adminUserRoleFilter}
+                      onChange={(e) => setAdminUserRoleFilter(e.target.value as any)}
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="superadmin">Super Admin</option>
+                      <option value="admin">Administrator</option>
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-44">
+                    <select
+                      value={adminUserStatusFilter}
+                      onChange={(e) => setAdminUserStatusFilter(e.target.value as any)}
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="active">Active Only</option>
+                      <option value="suspended">Suspended Only</option>
+                    </select>
+                  </div>
+
+                  {(adminUserSearch || adminUserRoleFilter !== 'all' || adminUserStatusFilter !== 'all') && (
+                    <button
+                      onClick={() => {
+                        setAdminUserSearch('');
+                        setAdminUserRoleFilter('all');
+                        setAdminUserStatusFilter('all');
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
+                  <span>
+                    Showing <strong className="text-slate-900 dark:text-white">{filteredAdminUsers.length}</strong> of <strong className="text-slate-900 dark:text-white">{adminUsersList.length}</strong> administrator accounts
+                  </span>
+                </div>
+              </div>
+
+              {/* Admin Users Table */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850/60 text-slate-500 uppercase text-[11px] tracking-wider font-semibold">
+                        <th className="py-3.5 px-4 sm:px-6">Administrator</th>
+                        <th className="py-3.5 px-4 sm:px-6">Role Clearance</th>
+                        <th className="py-3.5 px-4 sm:px-6">Department</th>
+                        <th className="py-3.5 px-4 sm:px-6">Access Passcode</th>
+                        <th className="py-3.5 px-4 sm:px-6">Status</th>
+                        <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                      {filteredAdminUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400">
+                            No administrator accounts found matching filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredAdminUsers.map(user => {
+                          const isPrimarySuper = user.email.toLowerCase() === DEFAULT_SUPER_ADMIN_EMAIL.toLowerCase();
+                          const isShowingPassword = revealedPasswordEmail === user.email.toLowerCase();
+
+                          return (
+                            <tr key={user.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-850/40 transition-colors">
+                              {/* Administrator Name & Email */}
+                              <td className="py-4 px-4 sm:px-6">
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                                    user.role === 'superadmin'
+                                      ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                                      : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                  }`}>
+                                    {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'AD'}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                                      <span>{user.name}</span>
+                                      {isPrimarySuper && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                                          Super Admin
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-slate-500 font-mono">{user.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Role Clearance */}
+                              <td className="py-4 px-4 sm:px-6">
+                                <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                  user.role === 'superadmin'
+                                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                }`}>
+                                  {user.role === 'superadmin' ? <Crown className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                                  <span>{user.role === 'superadmin' ? 'Super Admin' : 'Administrator'}</span>
+                                </span>
+                              </td>
+
+                              {/* Department */}
+                              <td className="py-4 px-4 sm:px-6 text-slate-600 dark:text-slate-300 text-xs">
+                                {user.department || 'General Administration'}
+                              </td>
+
+                              {/* Passcode / Password */}
+                              <td className="py-4 px-4 sm:px-6">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-mono text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
+                                    {isShowingPassword ? (user.password || 'admin2026') : '••••••••'}
+                                  </span>
+                                  {isSuperAdmin && (
+                                    <button
+                                      onClick={() => setRevealedPasswordEmail(isShowingPassword ? null : user.email.toLowerCase())}
+                                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded cursor-pointer"
+                                      title={isShowingPassword ? "Hide passcode" : "Reveal passcode"}
+                                    >
+                                      {isShowingPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Status */}
+                              <td className="py-4 px-4 sm:px-6">
+                                <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                  user.status === 'active'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                                  <span className="capitalize">{user.status}</span>
+                                </span>
+                              </td>
+
+                              {/* Actions */}
+                              <td className="py-4 px-4 sm:px-6 text-right">
+                                {isSuperAdmin ? (
+                                  <div className="flex items-center justify-end space-x-1.5">
+                                    {/* Toggle Active / Suspended */}
+                                    {!isPrimarySuper && (
+                                      <button
+                                        onClick={(e) => handleToggleAdminUserStatus(user, e)}
+                                        className={`p-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
+                                          user.status === 'active'
+                                            ? 'text-amber-600 border-amber-200 dark:border-amber-900/60 hover:bg-amber-50 dark:hover:bg-amber-950/50'
+                                            : 'text-emerald-600 border-emerald-200 dark:border-emerald-900/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/50'
+                                        }`}
+                                        title={user.status === 'active' ? 'Suspend account access' : 'Activate account access'}
+                                      >
+                                        {user.status === 'active' ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                                      </button>
+                                    )}
+
+                                    {/* Edit User */}
+                                    <button
+                                      onClick={(e) => handleOpenEditAdminUser(user, e)}
+                                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-600 transition-colors cursor-pointer"
+                                      title="Edit administrator details"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    {/* Delete User */}
+                                    {!isPrimarySuper && (
+                                      <button
+                                        onClick={(e) => handleOpenDeleteAdminUser(user, e)}
+                                        className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                                        title="Revoke administrator access"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-normal italic">
+                                    Read-only
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: SETTINGS */}
           {activeSidebarItem === 'settings' && (
             <div className="space-y-6 max-w-4xl">
               <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
@@ -1222,6 +1902,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onApprove={handleApprove}
         onReject={handleReject}
         onNavigateToCourse={onNavigateToCourse}
+      />
+
+      {/* Course Form Modal (Create & Edit) */}
+      <CourseFormModal
+        isOpen={isCourseFormOpen}
+        onClose={() => {
+          setIsCourseFormOpen(false);
+          setCourseToEdit(null);
+        }}
+        onSave={handleSaveCourse}
+        initialCourse={courseToEdit}
+      />
+
+      {/* Course Deletion Confirmation Modal */}
+      <DeleteCourseModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setCourseToDelete(null);
+        }}
+        course={courseToDelete}
+        onConfirmDelete={handleDeleteCourse}
+      />
+
+      {/* Admin User Form Modal (Create & Edit) */}
+      <AdminUserFormModal
+        isOpen={isAdminUserModalOpen}
+        onClose={() => {
+          setIsAdminUserModalOpen(false);
+          setAdminUserToEdit(null);
+        }}
+        onSave={handleSaveAdminUser}
+        initialUser={adminUserToEdit}
+        isSuperAdmin={isSuperAdmin}
+        currentAdminEmail={adminSession?.email}
+      />
+
+      {/* Delete Admin User Modal */}
+      <DeleteAdminUserModal
+        isOpen={isDeleteAdminUserModalOpen}
+        onClose={() => {
+          setIsDeleteAdminUserModalOpen(false);
+          setAdminUserToDelete(null);
+        }}
+        user={adminUserToDelete}
+        onConfirmDelete={handleDeleteAdminUser}
       />
     </div>
   );

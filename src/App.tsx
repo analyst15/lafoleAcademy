@@ -1763,7 +1763,20 @@ export default function App() {
               navigateTo('home');
             }}
             courses={courses}
-            onCoursesChange={(updatedCourses) => setCourses(updatedCourses)}
+            onCoursesChange={(updatedCourses) => {
+              setCourses(updatedCourses);
+              if (activeCourse) {
+                const refreshed = updatedCourses.find(c => c.id === activeCourse.id);
+                if (refreshed) {
+                  setActiveCourse(refreshed);
+                } else if (updatedCourses.length > 0) {
+                  setActiveCourse(updatedCourses[0]);
+                }
+              }
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('lafole_courses_updated', { detail: { courses: updatedCourses } }));
+              }
+            }}
           />
         ) : (
           <AdminAuthGate

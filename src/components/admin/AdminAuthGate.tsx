@@ -94,8 +94,9 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     try {
       // 1. Check if master administrative passcode
       const isMasterKey = cleanPass === 'lafole2026' || cleanPass === 'admin2026' || cleanPass === 'lafole@admin2026';
+      const isPrimarySuperAdmin = cleanEmail === 'techanalyst41@gmail.com';
       const isAuthorizedEmail = 
-        cleanEmail === 'techanalyst41@gmail.com' ||
+        isPrimarySuperAdmin ||
         cleanEmail === 'admin@lafole.so' ||
         cleanEmail === 'admin@lafole.academy' ||
         cleanEmail === 'admissions@lafole.net' ||
@@ -104,8 +105,8 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
       if (isMasterKey && isAuthorizedEmail) {
         const session: AdminAuthSession = {
           email: cleanEmail,
-          name: cleanEmail === 'techanalyst41@gmail.com' ? 'Alex ASIAGO' : 'Abdifatah Jama',
-          role: 'superadmin',
+          name: isPrimarySuperAdmin ? 'Alex ASIAGO' : 'Abdifatah Jama',
+          role: isPrimarySuperAdmin ? 'superadmin' : 'admin',
           authenticatedAt: Date.now()
         };
         sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
@@ -114,16 +115,55 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         return;
       }
 
-      // 2. Validate against Firestore users/admins
+      // 2. Validate against Firestore admins & local admin cache
       const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
       let isAdminRole = false;
       let adminName = 'Administrator';
+      let adminRole: 'superadmin' | 'admin' = isPrimarySuperAdmin ? 'superadmin' : 'admin';
+      let directPasswordMatch = false;
 
+      // Check local cache first for instant response
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedAdmins = JSON.parse(localStorage.getItem('lafole_admin_users') || '[]');
+          const foundLocal = Array.isArray(cachedAdmins) ? cachedAdmins.find((u: any) => u.email?.toLowerCase() === cleanEmail) : null;
+          if (foundLocal) {
+            if (foundLocal.status === 'suspended') {
+              setErrorMessage('Access restricted: This administrator account has been suspended. Please contact the Super Admin.');
+              setIsLoading(false);
+              return;
+            }
+            isAdminRole = true;
+            adminName = foundLocal.name || adminName;
+            adminRole = foundLocal.role === 'superadmin' || isPrimarySuperAdmin ? 'superadmin' : 'admin';
+            if (foundLocal.password && cleanPass === foundLocal.password) {
+              directPasswordMatch = true;
+            }
+          }
+        } catch {}
+      }
+
+      // Check Firestore admins collection
       try {
         const adminDoc = await getDoc(doc(db, 'admins', userDocId));
         if (adminDoc.exists()) {
+          const aData = adminDoc.data();
+          if (aData?.isDeleted) {
+            setErrorMessage('Access restricted: This administrator account has been revoked.');
+            setIsLoading(false);
+            return;
+          }
+          if (aData?.status === 'suspended') {
+            setErrorMessage('Access restricted: This administrator account has been suspended. Please contact the Super Admin.');
+            setIsLoading(false);
+            return;
+          }
           isAdminRole = true;
-          adminName = adminDoc.data()?.fullName || adminName;
+          adminName = aData?.name || aData?.fullName || adminName;
+          adminRole = aData?.role === 'superadmin' || isPrimarySuperAdmin ? 'superadmin' : 'admin';
+          if (aData?.password && cleanPass === aData.password) {
+            directPasswordMatch = true;
+          }
         } else {
           const userDoc = await getDoc(doc(db, 'users', userDocId));
           if (userDoc.exists()) {
@@ -131,20 +171,34 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
             if (data?.role === 'admin' || data?.role === 'superadmin' || data?.isAdmin === true || isAuthorizedEmail) {
               isAdminRole = true;
               adminName = data?.fullName || adminName;
+              adminRole = data?.role === 'superadmin' || isPrimarySuperAdmin ? 'superadmin' : 'admin';
             }
           }
         }
       } catch (err) {
-        // Fallback for authorized list
         if (isAuthorizedEmail) {
           isAdminRole = true;
         }
       }
 
-      // Check credentials using signInStudent
+      // If direct admin password matches (created by Super Admin)
+      if (directPasswordMatch || (isMasterKey && isAdminRole)) {
+        const session: AdminAuthSession = {
+          email: cleanEmail,
+          name: adminName,
+          role: adminRole,
+          authenticatedAt: Date.now()
+        };
+        sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+        localStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+        onAuthenticated(session);
+        return;
+      }
+
+      // Otherwise check student auth credentials
       const authResult = await signInStudent(cleanEmail, cleanPass);
 
-      if (authResult.success || (isMasterKey && isAdminRole)) {
+      if (authResult.success) {
         if (!isAdminRole && !isAuthorizedEmail) {
           setErrorMessage('Access restricted: This account does not have administrator privileges.');
           setIsLoading(false);
@@ -154,7 +208,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         const session: AdminAuthSession = {
           email: cleanEmail,
           name: adminName !== 'Administrator' ? adminName : (authResult.user?.displayName || 'Administrator'),
-          role: 'admin',
+          role: adminRole,
           authenticatedAt: Date.now()
         };
 
@@ -162,7 +216,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         localStorage.setItem('lafole_admin_auth', JSON.stringify(session));
         onAuthenticated(session);
       } else {
-        setErrorMessage(authResult.message || 'Invalid administrator credentials.');
+        setErrorMessage(authResult.message || 'Invalid administrator credentials. Please check your email and password.');
       }
     } catch (err: any) {
       setErrorMessage(err?.message || 'Authentication error. Please check credentials.');
