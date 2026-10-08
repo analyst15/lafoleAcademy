@@ -13,7 +13,8 @@ import {
   GraduationCap,
   ExternalLink,
   ShieldCheck,
-  Phone
+  Phone,
+  Trash2
 } from 'lucide-react';
 import { PaymentTableRecord } from '../../lib/firebase';
 import { ScreenshotViewerModal } from './ScreenshotViewerModal';
@@ -25,6 +26,8 @@ interface PaymentDetailModalProps {
   onApprove: (paymentId: string) => Promise<void>;
   onReject: (paymentId: string, reason?: string) => Promise<void>;
   onNavigateToCourse?: (courseId: string) => void;
+  isSuperAdmin?: boolean;
+  onDeletePayment?: (payment: PaymentTableRecord) => void;
 }
 
 export const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({
@@ -33,7 +36,9 @@ export const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({
   payment,
   onApprove,
   onReject,
-  onNavigateToCourse
+  onNavigateToCourse,
+  isSuperAdmin = false,
+  onDeletePayment
 }) => {
   const [isScreenshotOpen, setIsScreenshotOpen] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
@@ -413,6 +418,17 @@ export const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({
                   ) : (
                     <span>[ REJECT PAYMENT ]</span>
                   )}
+                </button>
+              )}
+
+              {isSuperAdmin && onDeletePayment && (
+                <button
+                  type="button"
+                  onClick={() => onDeletePayment(payment)}
+                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs transition-all border border-rose-200 dark:border-rose-900/60 bg-rose-50/60 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center space-x-1.5 cursor-pointer mt-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Payment Record (Super Admin)</span>
                 </button>
               )}
             </div>

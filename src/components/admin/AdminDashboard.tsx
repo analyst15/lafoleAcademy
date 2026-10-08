@@ -49,6 +49,9 @@ import {
   getAdminPayments,
   approveAdminPayment,
   rejectAdminPayment,
+  deletePaymentFromFirestore,
+  deleteOrderFromFirestore,
+  deleteStudentFromFirestore,
   saveCourseToFirestore,
   deleteCourseFromFirestore,
   getAdminUsersFromFirestore,
@@ -57,6 +60,9 @@ import {
   DEFAULT_SUPER_ADMIN_EMAIL
 } from '../../lib/firebase';
 import { PaymentDetailModal } from './PaymentDetailModal';
+import { DeletePaymentModal } from './DeletePaymentModal';
+import { DeleteOrderModal, OrderItemRecord } from './DeleteOrderModal';
+import { DeleteStudentModal, StudentItemRecord } from './DeleteStudentModal';
 import { CourseFormModal } from './CourseFormModal';
 import { DeleteCourseModal } from './DeleteCourseModal';
 import { AdminUserFormModal } from './AdminUserFormModal';
@@ -126,6 +132,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     loadData();
   }, []);
+
+  // Session inactivity timeout: 15 minutes of inactivity auto-locks the admin dashboard for security
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = sessionStorage.getItem('lafole_admin_auth');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            parsed.lastActiveAt = Date.now();
+            sessionStorage.setItem('lafole_admin_auth', JSON.stringify(parsed));
+          }
+        } catch {}
+      }
+      timeoutId = setTimeout(() => {
+        if (onSignOutAdmin) {
+          onSignOutAdmin();
+        } else {
+          onBackToHome();
+        }
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    resetTimer();
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    const handleActivity = () => resetTimer();
+
+    activityEvents.forEach(evt => window.addEventListener(evt, handleActivity));
+
+    return () => {
+      clearTimeout(timeoutId);
+      activityEvents.forEach(evt => window.removeEventListener(evt, handleActivity));
+    };
+  }, [onSignOutAdmin, onBackToHome]);
 
   const handleCopyRef = (ref: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -289,6 +334,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       adminSession.email?.toLowerCase() === DEFAULT_SUPER_ADMIN_EMAIL.toLowerCase()
     );
   }, [adminSession]);
+
+  // Super Admin Deletion State for Payments, Orders & Students
+  const [isDeletePaymentModalOpen, setIsDeletePaymentModalOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<PaymentTableRecord | null>(null);
+
+  const [isDeleteOrderModalOpen, setIsDeleteOrderModalOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<OrderItemRecord | null>(null);
+
+  const [isDeleteStudentModalOpen, setIsDeleteStudentModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<StudentItemRecord | null>(null);
+
+  const handleOpenDeletePayment = (payment: PaymentTableRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isSuperAdmin) {
+      showToast('Access Restricted: Only Super Admin is authorized to delete payment records.');
+      return;
+    }
+    setPaymentToDelete(payment);
+    setIsDeletePaymentModalOpen(true);
+  };
+
+  const handleConfirmDeletePayment = async (paymentId: string) => {
+    const res = await deletePaymentFromFirestore(paymentId);
+    if (res.success) {
+      setPayments(prev => prev.filter(p => p.id !== paymentId));
+      showToast('Payment record deleted successfully.');
+    }
+  };
+
+  const handleOpenDeleteOrder = (order: OrderItemRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isSuperAdmin) {
+      showToast('Access Restricted: Only Super Admin is authorized to delete orders.');
+      return;
+    }
+    setOrderToDelete(order);
+    setIsDeleteOrderModalOpen(true);
+  };
+
+  const handleConfirmDeleteOrder = async (orderId: string, paymentId?: string) => {
+    const res = await deleteOrderFromFirestore(orderId, paymentId);
+    if (res.success) {
+      setPayments(prev => prev.filter(p => p.order_id !== orderId && (!paymentId || p.id !== paymentId)));
+      showToast(`Order record deleted successfully.`);
+    }
+  };
+
+  const handleOpenDeleteStudent = (student: StudentItemRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isSuperAdmin) {
+      showToast('Access Restricted: Only Super Admin is authorized to delete students.');
+      return;
+    }
+    setStudentToDelete(student);
+    setIsDeleteStudentModalOpen(true);
+  };
+
+  const handleConfirmDeleteStudent = async (studentEmail: string) => {
+    const res = await deleteStudentFromFirestore(studentEmail);
+    if (res.success) {
+      const cleanEmail = studentEmail.toLowerCase().trim();
+      setPayments(prev => prev.filter(p => p.student_email.toLowerCase() !== cleanEmail));
+      showToast(`Student ${studentEmail} and records deleted successfully.`);
+    }
+  };
 
   // Admin Users state & management
   const [adminUsersList, setAdminUsersList] = useState<AdminUser[]>([]);
@@ -599,11 +709,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
 
           <button
-            onClick={onBackToHome}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            onClick={() => {
+              if (onSignOutAdmin) onSignOutAdmin();
+              else onBackToHome();
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer"
+            title="Lock administrator portal and return to public website"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Student Portal</span>
+            <Lock className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Exit to Web App</span>
           </button>
 
           {onNavigateToStudentDashboard && (
@@ -1108,6 +1222,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <span>View Payment</span>
                                     <ChevronRight className="w-3 h-3" />
                                   </button>
+
+                                  {isSuperAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleOpenDeletePayment(item, e)}
+                                      className="p-1.5 rounded-xl text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40"
+                                      title="Delete payment record (Super Admin)"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1188,15 +1313,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </span>
                             </td>
                             <td className="py-4 px-4 sm:px-6 text-right">
-                              <button
-                                onClick={() => {
-                                  setSelectedPayment(ord.payment);
-                                  setIsDetailModalOpen(true);
-                                }}
-                                className="text-xs font-semibold text-[#22C55E] hover:underline cursor-pointer"
-                              >
-                                View Payment
-                              </button>
+                              <div className="flex items-center justify-end space-x-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedPayment(ord.payment);
+                                    setIsDetailModalOpen(true);
+                                  }}
+                                  className="text-xs font-semibold text-[#22C55E] hover:underline cursor-pointer"
+                                >
+                                  View Payment
+                                </button>
+                                {isSuperAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleOpenDeleteOrder(ord, e)}
+                                    className="p-1.5 rounded-xl text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40"
+                                    title="Delete order record (Super Admin)"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -1519,12 +1656,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <th className="py-3.5 px-4 sm:px-6">Courses</th>
                         <th className="py-3.5 px-4 sm:px-6">Total Paid</th>
                         <th className="py-3.5 px-4 sm:px-6">Status</th>
+                        <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                       {filteredStudents.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-400">
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
                             No student enrollments registered yet.
                           </td>
                         </tr>
@@ -1552,6 +1690,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               }`}>
                                 {st.status}
                               </span>
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-right">
+                              {isSuperAdmin ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenDeleteStudent(st, e)}
+                                  className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-semibold text-xs transition-colors cursor-pointer border border-rose-200 dark:border-rose-900/60"
+                                  title="Delete student and revoke enrollments (Super Admin)"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete</span>
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -1902,6 +2055,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onApprove={handleApprove}
         onReject={handleReject}
         onNavigateToCourse={onNavigateToCourse}
+        isSuperAdmin={isSuperAdmin}
+        onDeletePayment={(p) => {
+          setIsDetailModalOpen(false);
+          handleOpenDeletePayment(p);
+        }}
+      />
+
+      {/* Delete Payment Modal */}
+      <DeletePaymentModal
+        isOpen={isDeletePaymentModalOpen}
+        onClose={() => {
+          setIsDeletePaymentModalOpen(false);
+          setPaymentToDelete(null);
+        }}
+        payment={paymentToDelete}
+        onConfirmDelete={handleConfirmDeletePayment}
+      />
+
+      {/* Delete Order Modal */}
+      <DeleteOrderModal
+        isOpen={isDeleteOrderModalOpen}
+        onClose={() => {
+          setIsDeleteOrderModalOpen(false);
+          setOrderToDelete(null);
+        }}
+        order={orderToDelete}
+        onConfirmDelete={handleConfirmDeleteOrder}
+      />
+
+      {/* Delete Student Modal */}
+      <DeleteStudentModal
+        isOpen={isDeleteStudentModalOpen}
+        onClose={() => {
+          setIsDeleteStudentModalOpen(false);
+          setStudentToDelete(null);
+        }}
+        student={studentToDelete}
+        onConfirmDelete={handleConfirmDeleteStudent}
       />
 
       {/* Course Form Modal (Create & Edit) */}

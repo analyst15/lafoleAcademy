@@ -220,6 +220,129 @@ async function startServer() {
       }
 
       // ==========================================
+      // Flow 4: Student Manual Payment Notification for info@lafole.net
+      // ==========================================
+      if (type === 'manual_payment_notification' || type === 'manual_payment') {
+        const student = fullName || req.body.studentName || 'Student';
+        const studentEmail = req.body.studentEmail || req.body.email || '';
+        const phone = req.body.senderPhone || req.body.phone || 'N/A';
+        const course = courseTitle || req.body.courseTitle || 'Selected Course';
+        const amt = req.body.amount ? `$${req.body.amount} USD` : '$25 USD';
+        const method = req.body.paymentMethod || 'Manual Mobile Payment';
+        const ref = req.body.transactionReference || req.body.ref || 'PENDING';
+        const proof = req.body.proofUrl || '';
+        const submitted = req.body.submittedAt || new Date().toLocaleString();
+
+        const notifRecipient = 'info@lafole.net';
+        const subject = `[Action Required] New Manual Payment Submitted: ${ref} by ${student} (${amt})`;
+        const textContent = `Action Required - New Student Manual Payment Submitted\n\nA student has recorded a manual payment for enrollment at Lafole Academy that requires review and approval.\n\nDetails:\n- Student Name: ${student}\n- Student Email: ${studentEmail}\n- Phone / Sender: ${phone}\n- Course: ${course}\n- Amount: ${amt}\n- Payment Method: ${method}\n- Transaction Reference: ${ref}\n- Submitted At: ${submitted}\n${proof ? `- Proof Screenshot: ${proof}\n` : ''}\nPlease log in to the Administrator Dashboard at /admin to review the transaction and approve or reject access.\n\nLafole Academy Payment Gateway System`;
+        
+        const htmlContent = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 12px; background: #22c55e; color: #ffffff; font-weight: 900; font-size: 24px;">L</div>
+              <h2 style="color: #0f172a; margin-top: 14px; margin-bottom: 4px; font-size: 22px; font-weight: 700;">New Manual Payment Submitted</h2>
+              <p style="color: #64748b; font-size: 14px; margin: 0;">Action Required • Lafole Academy Admissions & Registrar</p>
+            </div>
+
+            <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 14px 18px; margin-bottom: 24px;">
+              <p style="color: #92400e; font-size: 14px; margin: 0; font-weight: 600;">
+                ⚠️ A student has recorded a manual payment that is awaiting administrative verification.
+              </p>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">
+              <tbody>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b; width: 40%;">Student Name:</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-weight: 700;">${student}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b;">Student Email:</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-family: monospace;">${studentEmail}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b;">Sender Phone:</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-family: monospace;">${phone}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b;">Course / Track:</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-weight: 600;">${course}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b;">Amount:</td>
+                  <td style="padding: 10px 0; color: #16a34a; font-weight: 800; font-size: 16px;">${amt}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b;">Payment Method:</td>
+                  <td style="padding: 10px 0; color: #0f172a;">${method}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 10px 0; color: #64748b;">Transaction Reference:</td>
+                  <td style="padding: 10px 0; color: #0f172a; font-family: monospace; font-weight: 700; background: #f8fafc; padding-left: 6px;">${ref}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 0; color: #64748b;">Submitted At:</td>
+                  <td style="padding: 10px 0; color: #64748b; font-size: 13px;">${submitted}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="/admin" style="background-color: #22c55e; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 15px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.2);">Open Admin Dashboard to Verify</a>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;" />
+            <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0;">Automated notification sent to info@lafole.net upon manual checkout record submission.</p>
+          </div>
+        `;
+
+        if (resendApiKey) {
+          try {
+            const emailResponse = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${resendApiKey}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                from: sender,
+                reply_to: studentEmail || "admissions@lafole.net",
+                to: [notifRecipient],
+                subject,
+                text: textContent,
+                html: htmlContent
+              })
+            });
+
+            const resendData = await emailResponse.json();
+            if (emailResponse.ok) {
+              console.log(`[Email Service] Manual payment notification delivered via Resend to ${notifRecipient} (ID: ${resendData.id})`);
+              return res.json({
+                success: true,
+                delivered: true,
+                provider: "resend",
+                id: resendData.id,
+                message: `Manual payment notification delivered to ${notifRecipient}`
+              });
+            } else {
+              console.info(`[Email Service] Resend response for ${notifRecipient}:`, resendData?.message);
+            }
+          } catch (resendErr: any) {
+            console.info("[Email Service] Resend connection note:", resendErr?.message);
+          }
+        }
+
+        console.log(`[Email Service] Manual payment simulated email for ${notifRecipient}: ${subject}`);
+        return res.json({
+          success: true,
+          delivered: false,
+          simulated: true,
+          message: `Manual payment notification recorded for ${notifRecipient}`
+        });
+      }
+
+      // ==========================================
       // Flow 2: 24-Hour Student Email Verification Link
       // ==========================================
       const hashFallbackUrl = verificationUrl && !verificationUrl.includes('#') 

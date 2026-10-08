@@ -21,6 +21,7 @@ export interface AdminAuthSession {
   name: string;
   role: 'admin' | 'superadmin';
   authenticatedAt: number;
+  lastActiveAt: number;
 }
 
 interface AdminAuthGateProps {
@@ -33,43 +34,19 @@ interface AdminAuthGateProps {
 export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   onAuthenticated,
   onBackToHome,
-  currentUserEmail,
-  currentUserName
+  currentUserEmail
 }) => {
   const [identifier, setIdentifier] = useState(currentUserEmail || 'techanalyst41@gmail.com');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [quickAdminDetected, setQuickAdminDetected] = useState(false);
 
-  // Check if current student logged in is an authorized admin
+  // If user changes email prop, sync identifier
   useEffect(() => {
-    const email = (currentUserEmail || '').toLowerCase().trim();
-    const authorizedEmails = [
-      'techanalyst41@gmail.com',
-      'admin@lafole.so',
-      'admin@lafole.academy',
-      'admissions@lafole.net'
-    ];
-    if (authorizedEmails.includes(email)) {
-      setQuickAdminDetected(true);
-      setIdentifier(email);
+    if (currentUserEmail) {
+      setIdentifier(currentUserEmail);
     }
   }, [currentUserEmail]);
-
-  const handleQuickUnlock = () => {
-    const session: AdminAuthSession = {
-      email: currentUserEmail || 'techanalyst41@gmail.com',
-      name: currentUserName || 'Alex ASIAGO',
-      role: 'superadmin',
-      authenticatedAt: Date.now()
-    };
-    try {
-      sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
-      localStorage.setItem('lafole_admin_auth', JSON.stringify(session));
-    } catch {}
-    onAuthenticated(session);
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,10 +84,13 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           email: cleanEmail,
           name: isPrimarySuperAdmin ? 'Alex ASIAGO' : 'Abdifatah Jama',
           role: isPrimarySuperAdmin ? 'superadmin' : 'admin',
-          authenticatedAt: Date.now()
+          authenticatedAt: Date.now(),
+          lastActiveAt: Date.now()
         };
-        sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
-        localStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+        try {
+          sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+          localStorage.removeItem('lafole_admin_auth');
+        } catch {}
         onAuthenticated(session);
         return;
       }
@@ -187,10 +167,13 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           email: cleanEmail,
           name: adminName,
           role: adminRole,
-          authenticatedAt: Date.now()
+          authenticatedAt: Date.now(),
+          lastActiveAt: Date.now()
         };
-        sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
-        localStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+        try {
+          sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+          localStorage.removeItem('lafole_admin_auth');
+        } catch {}
         onAuthenticated(session);
         return;
       }
@@ -209,11 +192,14 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           email: cleanEmail,
           name: adminName !== 'Administrator' ? adminName : (authResult.user?.displayName || 'Administrator'),
           role: adminRole,
-          authenticatedAt: Date.now()
+          authenticatedAt: Date.now(),
+          lastActiveAt: Date.now()
         };
 
-        sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
-        localStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+        try {
+          sessionStorage.setItem('lafole_admin_auth', JSON.stringify(session));
+          localStorage.removeItem('lafole_admin_auth');
+        } catch {}
         onAuthenticated(session);
       } else {
         setErrorMessage(authResult.message || 'Invalid administrator credentials. Please check your email and password.');
@@ -255,27 +241,6 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
             </p>
           </div>
         </div>
-
-        {/* Quick Unlock if current student is authorized admin */}
-        {quickAdminDetected && (
-          <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2.5">
-            <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>Verified Administrator Detected</span>
-            </div>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400">
-              You are currently signed in as <strong className="text-slate-900 dark:text-white">{currentUserEmail}</strong>.
-            </p>
-            <button
-              type="button"
-              onClick={handleQuickUnlock}
-              className="w-full py-2.5 px-3 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer"
-            >
-              <span>Unlock Admin Portal as {currentUserName || 'Admin'}</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
 
         {/* Error Alert */}
         {errorMessage && (

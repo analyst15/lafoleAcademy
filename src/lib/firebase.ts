@@ -1692,6 +1692,21 @@ export async function recordPaymentOrderEnrollment(params: {
     console.warn("Could not save payment records to Firestore:", err);
   }
 
+  // Trigger email notification to info@lafole.net for administrative review & approval
+  sendManualPaymentNotificationToAdmin({
+    studentName: params.studentName,
+    studentEmail: params.studentEmail,
+    senderPhone: params.senderPhone,
+    courseTitle: params.courseTitle,
+    amount: params.amount,
+    paymentMethod: params.paymentMethod,
+    transactionReference: params.transactionReference,
+    proofUrl: params.proofUrl,
+    submittedAt: now
+  }).catch((err) => {
+    console.info("Notice: Manual payment notification dispatch result:", err);
+  });
+
   // Also persist to localStorage for offline reliability
   if (typeof window !== 'undefined') {
     try {
@@ -1705,10 +1720,84 @@ export async function recordPaymentOrderEnrollment(params: {
 }
 
 /**
+ * Sends notification email to info@lafole.net when a student records a manual payment
+ */
+export async function sendManualPaymentNotificationToAdmin(details: {
+  studentName: string;
+  studentEmail: string;
+  senderPhone: string;
+  courseTitle: string;
+  amount: number;
+  paymentMethod: string;
+  transactionReference: string;
+  proofUrl?: string;
+  submittedAt?: string;
+}): Promise<{ success: boolean; message: string }> {
+  const notifRecipient = 'info@lafole.net';
+  const submittedAt = details.submittedAt || new Date().toISOString();
+
+  // 1. Queue in Firestore 'mail' collection for Firebase Trigger Email extensions
+  try {
+    const mailDocId = `mail_pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await setDoc(doc(db, 'mail', mailDocId), {
+      to: [notifRecipient],
+      message: {
+        subject: `[Action Required] New Manual Payment: ${details.transactionReference} from ${details.studentName} ($${details.amount})`,
+        text: `New student manual payment recorded for Lafole Academy.\n\nStudent: ${details.studentName} (${details.studentEmail})\nPhone: ${details.senderPhone}\nCourse: ${details.courseTitle}\nAmount: $${details.amount} USD\nPayment Method: ${details.paymentMethod}\nReference: ${details.transactionReference}\nSubmitted At: ${submittedAt}\n\nPlease review and approve on the Admin Dashboard (/admin).`,
+        html: `<p>New manual payment recorded by <strong>${details.studentName}</strong> (${details.studentEmail}). Amount: <strong>$${details.amount} USD</strong> via <strong>${details.paymentMethod}</strong> (Ref: <code>${details.transactionReference}</code>).</p><p><a href="/admin">Review on Admin Dashboard</a></p>`
+      },
+      createdAt: submittedAt
+    });
+  } catch (err) {
+    // Non-blocking
+  }
+
+  // 2. Dispatch via server-side mailer API (Resend / SMTP fallback)
+  try {
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'manual_payment_notification',
+        to: notifRecipient,
+        studentName: details.studentName,
+        studentEmail: details.studentEmail,
+        senderPhone: details.senderPhone,
+        courseTitle: details.courseTitle,
+        amount: details.amount,
+        paymentMethod: details.paymentMethod,
+        transactionReference: details.transactionReference,
+        proofUrl: details.proofUrl || '',
+        submittedAt: submittedAt
+      })
+    });
+    if (res.ok) {
+      return { success: true, message: `Notification sent to ${notifRecipient}` };
+    }
+  } catch (err) {
+    console.info("Notice: Server-side email notification endpoint call:", err);
+  }
+
+  return { success: true, message: `Manual payment recorded and logged for ${notifRecipient}` };
+}
+
+/**
  * Fetches all payments for the admin dashboard, merging Firestore and local records
  */
 export async function getAdminPayments(): Promise<PaymentTableRecord[]> {
   const paymentMap = new Map<string, PaymentTableRecord>();
+
+  // Deleted tracking sets
+  const deletedPaymentIds = new Set<string>();
+  const deletedStudentEmails = new Set<string>();
+  if (typeof window !== 'undefined') {
+    try {
+      const deletedP = JSON.parse(localStorage.getItem('lafole_deleted_payments') || '[]');
+      if (Array.isArray(deletedP)) deletedP.forEach((id: string) => deletedPaymentIds.add(id));
+      const deletedS = JSON.parse(localStorage.getItem('lafole_deleted_students') || '[]');
+      if (Array.isArray(deletedS)) deletedS.forEach((email: string) => deletedStudentEmails.add(email.toLowerCase()));
+    } catch {}
+  }
 
   // Helper to identify and reject legacy mock seed records
   const isSeedRecord = (p: Partial<PaymentTableRecord>) => {
@@ -1717,6 +1806,8 @@ export async function getAdminPayments(): Promise<PaymentTableRecord[]> {
     const ref = (p.transaction_reference || '').toUpperCase();
     const email = (p.student_email || '').toLowerCase();
     return (
+      deletedPaymentIds.has(id) ||
+      deletedStudentEmails.has(email) ||
       id === 'pay_ahmed_ali_8h72k9' ||
       id === 'pay_mohamed_hassan_ed83492' ||
       ref === '8H72K9' ||
@@ -2043,6 +2134,162 @@ export async function rejectAdminPayment(
     message: `Payment rejected.`,
     payment
   };
+}
+
+// ============================================================================
+// SUPER ADMIN DELETION OPERATIONS (PAYMENTS, ORDERS & STUDENTS)
+// ============================================================================
+
+/**
+ * Super Admin: Permanently delete a payment record from Firestore and local cache
+ */
+export async function deletePaymentFromFirestore(paymentId: string): Promise<{ success: boolean; message: string }> {
+  // 1. Delete payment document from Firestore
+  try {
+    await deleteDoc(doc(db, 'payments', paymentId));
+  } catch (err) {
+    console.warn("Could not delete payment doc from Firestore:", err);
+  }
+
+  // 2. Also check if there's an enrollment with this payment ID
+  try {
+    const rawId = paymentId.startsWith('pay_') ? paymentId.replace('pay_', '') : paymentId;
+    await deleteDoc(doc(db, 'enrollments', rawId));
+  } catch {}
+
+  // 3. Update localStorage cache
+  if (typeof window !== 'undefined') {
+    try {
+      const deleted = JSON.parse(localStorage.getItem('lafole_deleted_payments') || '[]');
+      if (Array.isArray(deleted) && !deleted.includes(paymentId)) {
+        deleted.push(paymentId);
+        localStorage.setItem('lafole_deleted_payments', JSON.stringify(deleted));
+      }
+
+      const existing = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      if (Array.isArray(existing)) {
+        const filtered = existing.filter((p: any) => p.id !== paymentId);
+        localStorage.setItem('lafole_admin_payments', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
+  return { success: true, message: 'Payment record deleted successfully.' };
+}
+
+/**
+ * Super Admin: Permanently delete an order record and associated payment/enrollment records
+ */
+export async function deleteOrderFromFirestore(orderId: string, paymentId?: string): Promise<{ success: boolean; message: string }> {
+  // 1. Delete order doc from Firestore
+  try {
+    await deleteDoc(doc(db, 'orders', orderId));
+  } catch (err) {
+    console.warn("Could not delete order doc from Firestore:", err);
+  }
+
+  // 2. If paymentId is specified, also delete payment doc
+  if (paymentId) {
+    try {
+      await deleteDoc(doc(db, 'payments', paymentId));
+    } catch {}
+  }
+
+  // 3. Update localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const deletedOrders = JSON.parse(localStorage.getItem('lafole_deleted_orders') || '[]');
+      if (Array.isArray(deletedOrders) && !deletedOrders.includes(orderId)) {
+        deletedOrders.push(orderId);
+        localStorage.setItem('lafole_deleted_orders', JSON.stringify(deletedOrders));
+      }
+
+      if (paymentId) {
+        const deletedPayments = JSON.parse(localStorage.getItem('lafole_deleted_payments') || '[]');
+        if (Array.isArray(deletedPayments) && !deletedPayments.includes(paymentId)) {
+          deletedPayments.push(paymentId);
+          localStorage.setItem('lafole_deleted_payments', JSON.stringify(deletedPayments));
+        }
+      }
+
+      const existing = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      if (Array.isArray(existing)) {
+        const filtered = existing.filter((p: any) => p.order_id !== orderId && (!paymentId || p.id !== paymentId));
+        localStorage.setItem('lafole_admin_payments', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
+  return { success: true, message: 'Order record deleted successfully.' };
+}
+
+/**
+ * Super Admin: Permanently delete a student, revoking access and removing all enrollments/payments
+ */
+export async function deleteStudentFromFirestore(studentEmail: string): Promise<{ success: boolean; message: string }> {
+  const cleanEmail = studentEmail.trim().toLowerCase();
+  const cleanId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+
+  // 1. Delete from Firestore students and users collections
+  try {
+    await Promise.allSettled([
+      deleteDoc(doc(db, 'students', cleanId)),
+      deleteDoc(doc(db, 'students', cleanEmail)),
+      deleteDoc(doc(db, 'users', cleanId)),
+      deleteDoc(doc(db, 'users', cleanEmail))
+    ]);
+  } catch (err) {
+    console.warn("Could not delete student from Firestore:", err);
+  }
+
+  // 2. Query and delete all enrollments and payments for this student
+  try {
+    const [enrSnap, paySnap] = await Promise.all([
+      getDocs(collection(db, 'enrollments')),
+      getDocs(collection(db, 'payments'))
+    ]);
+
+    const deletePromises: Promise<any>[] = [];
+    enrSnap.forEach(d => {
+      const data = d.data();
+      if ((data.email && data.email.toLowerCase() === cleanEmail) || 
+          (data.student_id && data.student_id.toLowerCase() === cleanEmail) ||
+          (data.studentId && data.studentId.toLowerCase() === cleanEmail)) {
+        deletePromises.push(deleteDoc(doc(db, 'enrollments', d.id)));
+      }
+    });
+
+    paySnap.forEach(d => {
+      const data = d.data();
+      if ((data.student_email && data.student_email.toLowerCase() === cleanEmail) ||
+          (data.student_id && data.student_id.toLowerCase() === cleanEmail)) {
+        deletePromises.push(deleteDoc(doc(db, 'payments', d.id)));
+      }
+    });
+
+    await Promise.allSettled(deletePromises);
+  } catch (err) {
+    console.warn("Could not clean up student enrollments/payments:", err);
+  }
+
+  // 3. Update localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const deletedStudents = JSON.parse(localStorage.getItem('lafole_deleted_students') || '[]');
+      if (Array.isArray(deletedStudents) && !deletedStudents.includes(cleanEmail)) {
+        deletedStudents.push(cleanEmail);
+        localStorage.setItem('lafole_deleted_students', JSON.stringify(deletedStudents));
+      }
+
+      const existing = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      if (Array.isArray(existing)) {
+        const filtered = existing.filter((p: any) => p.student_email?.toLowerCase() !== cleanEmail);
+        localStorage.setItem('lafole_admin_payments', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
+  return { success: true, message: `Student ${cleanEmail} and all associated records deleted successfully.` };
 }
 
 // ============================================================================

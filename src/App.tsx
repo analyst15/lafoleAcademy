@@ -219,15 +219,40 @@ export default function App() {
   const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
   // Admin authentication session state
+  // CRITICAL SECURITY: Admin session is strictly ephemeral, never stored in localStorage,
+  // and only valid while actively on the /admin route within the inactivity timeout window.
   const [adminSession, setAdminSession] = useState<AdminAuthSession | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = sessionStorage.getItem('lafole_admin_auth') || localStorage.getItem('lafole_admin_auth');
-        if (stored) return JSON.parse(stored);
+        localStorage.removeItem('lafole_admin_auth'); // Purge any legacy unexpired persistent credentials
+        if (window.location.pathname === '/admin' || window.location.hash === '#admin') {
+          const stored = sessionStorage.getItem('lafole_admin_auth');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const ADMIN_TIMEOUT_MS = 15 * 60 * 1000;
+            if (parsed?.lastActiveAt && Date.now() - parsed.lastActiveAt < ADMIN_TIMEOUT_MS) {
+              return parsed;
+            }
+          }
+        }
+        sessionStorage.removeItem('lafole_admin_auth');
       } catch {}
     }
     return null;
   });
+
+  // CRITICAL SECURITY ENFORCEMENT: Admin Session Isolation
+  // When an admin leaves /admin to view the public web app (e.g. home '/', catalog, diplomas, student dashboard),
+  // immediately terminate and clear the admin session so returning to /admin requires re-authentication.
+  useEffect(() => {
+    if (activeView !== 'admin' && adminSession) {
+      setAdminSession(null);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('lafole_admin_auth');
+        localStorage.removeItem('lafole_admin_auth');
+      }
+    }
+  }, [activeView, adminSession]);
 
   // Email verification session state (triggers post-verification navbar with initials & My Dashboard)
   const [isEmailVerified, setIsEmailVerified] = useState<boolean>(() => {
@@ -1743,13 +1768,32 @@ export default function App() {
       {activeView === 'admin' && (
         adminSession ? (
           <AdminDashboard
-            onBackToHome={() => navigateTo('home')}
+            onBackToHome={() => {
+              setAdminSession(null);
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('lafole_admin_auth');
+                localStorage.removeItem('lafole_admin_auth');
+              }
+              navigateTo('home');
+            }}
             onNavigateToCourse={(cId) => {
+              setAdminSession(null);
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('lafole_admin_auth');
+                localStorage.removeItem('lafole_admin_auth');
+              }
               const found = courses.find(c => c.id === cId || c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cId);
               if (found) navigateToCourse(found);
               else navigateTo('catalog');
             }}
-            onNavigateToStudentDashboard={() => navigateToDashboard('mylearning')}
+            onNavigateToStudentDashboard={() => {
+              setAdminSession(null);
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('lafole_admin_auth');
+                localStorage.removeItem('lafole_admin_auth');
+              }
+              navigateToDashboard('mylearning');
+            }}
             isDarkMode={isDarkMode}
             onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
             adminSession={adminSession}
