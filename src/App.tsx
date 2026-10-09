@@ -1078,7 +1078,16 @@ export default function App() {
           {/* Latest Courses Section (recreated with exact inspiration) */}
           <LatestCoursesSection
             courses={courses}
+            enrolledCourseIds={enrolledCourseIds}
+            isStudentSignedIn={isEmailVerified && Boolean(verifiedEmail)}
             onSelectCourse={navigateToCourse}
+            onResumeLearning={(course) => {
+              setActiveCourse(course);
+              if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
+                setActiveLesson(course.modules[0].lessons[0]);
+              }
+              navigateToDashboard('mylearning');
+            }}
             onOpenFullCatalog={() => navigateTo('catalog')}
           />
 
@@ -1191,7 +1200,16 @@ export default function App() {
         <div className="flex-1 flex flex-col">
           <CatalogPage
             courses={courses}
+            enrolledCourseIds={enrolledCourseIds}
+            isStudentSignedIn={isEmailVerified && Boolean(verifiedEmail)}
             onSelectCourse={navigateToCourse}
+            onResumeLearning={(course) => {
+              setActiveCourse(course);
+              if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
+                setActiveLesson(course.modules[0].lessons[0]);
+              }
+              navigateToDashboard('mylearning');
+            }}
             onBackToHome={() => navigateTo('home')}
           />
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
@@ -1231,6 +1249,18 @@ export default function App() {
         <div className="flex-1 flex flex-col">
           <CourseDetailsPage
             course={activeCourse}
+            isEnrolled={
+              isEmailVerified && 
+              Boolean(verifiedEmail) && 
+              (enrolledCourseIds.includes(activeCourse.id) || enrolledCourseIds.includes(activeCourse.title))
+            }
+            onResumeLearning={(course) => {
+              setActiveCourse(course);
+              if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
+                setActiveLesson(course.modules[0].lessons[0]);
+              }
+              navigateToDashboard('mylearning');
+            }}
             onEnroll={navigateToCheckout}
             onBackToCatalog={() => navigateTo('catalog')}
             onBackToHome={() => navigateTo('home')}

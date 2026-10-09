@@ -61,20 +61,6 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // USSD Quick Dial Hint based on currency
-  const getUssdHint = () => {
-    switch (manualCurrency) {
-      case 'EVC Plus':
-        return `Dial *712*619290900*${finalPrice}# on your Hormuud phone`;
-      case 'ZAAD':
-        return `Dial *222*619290900*${finalPrice}# on your Telesom phone`;
-      case 'eDahab':
-        return `Dial *789*619290900*${finalPrice}# on your Somtel phone`;
-      default:
-        return `Transfer $${finalPrice} to +252 61 9290900`;
-    }
-  };
-
   return (
     <div className="space-y-4 pt-3 border-t border-slate-100 dark:border-slate-800">
       
@@ -153,9 +139,6 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
                   <Smartphone className="w-4 h-4 text-[#22C55E]" />
                   <span>Mobile Money Transfer (Somalia &amp; Somaliland)</span>
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Currencies: EVC Plus, eDahab, ZAAD — Manual Payment Processing
-                </div>
               </div>
             </div>
 
@@ -177,14 +160,14 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
                     key={curr}
                     type="button"
                     onClick={() => setManualCurrency(curr)}
-                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer border ${
+                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-normal transition-all flex items-center justify-center space-x-1.5 cursor-pointer border ${
                       isSelected
                         ? 'bg-[#22C55E] text-white border-[#22C55E] shadow-sm scale-[1.01]'
                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
                     }`}
                   >
-                    <span>{curr}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    <span className="font-normal">{curr}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[2]" />}
                   </button>
                 );
               })}
@@ -210,7 +193,7 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
 
               {/* Provider details card */}
               <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl space-y-2 border border-slate-200/90 dark:border-slate-700 text-xs sm:text-sm font-medium">
-                <div className="text-sm sm:text-base font-extrabold text-[#22C55E]">
+                <div className="text-sm sm:text-base font-normal text-[#22C55E]">
                   {manualCurrency}
                 </div>
                 
@@ -238,7 +221,6 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
                   <span className="text-slate-500 font-medium">Reference:</span>
                   <div className="flex items-center space-x-1.5 font-mono font-black text-[#22C55E]">
                     <span>{orderReference}</span>
-                    <span className="text-[11px] font-sans font-normal text-slate-400 dark:text-slate-500">(Auto-increments)</span>
                     <button
                       type="button"
                       onClick={() => onCopy(orderReference, 'Order Reference')}
@@ -249,12 +231,6 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
                     </button>
                   </div>
                 </div>
-              </div>
-
-              {/* Dial shortcut */}
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center space-x-1.5 pt-0.5">
-                <Info className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                <span>{getUssdHint()}</span>
               </div>
             </div>
 

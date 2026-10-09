@@ -1293,19 +1293,36 @@ export async function getStudentEnrolledCourseIds(email: string): Promise<string
     const snap = await getDocs(q);
     snap.forEach((docSnap) => {
       const data = docSnap.data();
-      if (
-        (data.status === 'enrolled' || data.status === 'active' || data.paymentStatus === 'completed') &&
-        data.courseId &&
-        data.courseId !== 'general-student'
-      ) {
-        enrolledIds.add(data.courseId);
+      const isActive = data.status === 'enrolled' || data.status === 'active' || data.paymentStatus === 'completed' || data.hasAccess === true;
+      const cId = data.courseId || data.course_id;
+      if (isActive && cId && cId !== 'general-student') {
+        enrolledIds.add(cId);
       }
     });
   } catch (err) {
     console.warn("Could not query enrollments for student:", err);
   }
 
-  // 2. Query user/student record for confirmed enrolled courses
+  // 2. Query 'payments' collection where student_email matches and status is 'approved' or 'paid'
+  try {
+    const qPayments = query(
+      collection(db, 'payments'),
+      where('student_email', '==', cleanEmail)
+    );
+    const snapPayments = await getDocs(qPayments);
+    snapPayments.forEach((docSnap) => {
+      const data = docSnap.data();
+      const isApproved = data.status === 'approved' || data.status === 'paid' || data.payment_status === 'PAID';
+      const cId = data.course_id || data.courseId;
+      if (isApproved && cId && cId !== 'general-student') {
+        enrolledIds.add(cId);
+      }
+    });
+  } catch (err) {
+    console.warn("Could not query payments for student:", err);
+  }
+
+  // 3. Query user/student record for confirmed enrolled courses
   try {
     const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
     const uSnap = await getDoc(doc(db, 'users', userDocId));
@@ -1316,12 +1333,50 @@ export async function getStudentEnrolledCourseIds(email: string): Promise<string
           if (id && id !== 'general-student') enrolledIds.add(id);
         });
       }
-      if (data.status === 'enrolled' && data.lastEnrolledCourseId && data.lastEnrolledCourseId !== 'general-student') {
+      if ((data.status === 'enrolled' || data.status === 'active') && data.lastEnrolledCourseId && data.lastEnrolledCourseId !== 'general-student') {
         enrolledIds.add(data.lastEnrolledCourseId);
       }
     }
   } catch (err) {
     console.warn("Could not query user doc for enrollments:", err);
+  }
+
+  // 4. Query students collection
+  try {
+    const userDocId = cleanEmail.replace(/[^a-z0-9_-]/g, '_');
+    const sSnap = await getDoc(doc(db, 'students', userDocId));
+    if (sSnap.exists()) {
+      const data = sSnap.data();
+      if (Array.isArray(data.enrolledCourseIds)) {
+        data.enrolledCourseIds.forEach((id: string) => {
+          if (id && id !== 'general-student') enrolledIds.add(id);
+        });
+      }
+    }
+  } catch {}
+
+  // 5. Also check localStorage for locally approved payments or enrollments in this session
+  if (typeof window !== 'undefined') {
+    try {
+      const localPayments = JSON.parse(localStorage.getItem('lafole_admin_payments') || '[]');
+      if (Array.isArray(localPayments)) {
+        localPayments.forEach((p: any) => {
+          if (
+            p.student_email?.toLowerCase() === cleanEmail &&
+            (p.status === 'approved' || p.status === 'paid') &&
+            p.course_id
+          ) {
+            enrolledIds.add(p.course_id);
+          }
+        });
+      }
+      const localEnrolled = JSON.parse(localStorage.getItem('lafole_enrolled_course_ids') || '[]');
+      if (Array.isArray(localEnrolled)) {
+        localEnrolled.forEach((id: string) => {
+          if (id && id !== 'general-student') enrolledIds.add(id);
+        });
+      }
+    } catch {}
   }
 
   return Array.from(enrolledIds);

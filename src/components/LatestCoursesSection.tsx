@@ -1,16 +1,22 @@
 import React from 'react';
-import { ArrowRight, Clock, BookOpen, Sparkles } from 'lucide-react';
+import { ArrowRight, Clock, BookOpen, Play, CheckCircle2 } from 'lucide-react';
 import { Course } from '../types';
 
 interface LatestCoursesSectionProps {
   courses: Course[];
+  enrolledCourseIds?: string[];
+  isStudentSignedIn?: boolean;
   onSelectCourse: (course: Course) => void;
+  onResumeLearning?: (course: Course) => void;
   onOpenFullCatalog: () => void;
 }
 
 export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
   courses,
+  enrolledCourseIds = [],
+  isStudentSignedIn = false,
   onSelectCourse,
+  onResumeLearning,
   onOpenFullCatalog
 }) => {
   // Display the latest 8 courses (matching the 2x4 grid in the reference mockup)
@@ -51,17 +57,38 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
 
         {/* 4-Column Responsive Grid (2 rows x 4 columns = 8 cards) */}
         <div className="pt-8 sm:pt-10 w-full min-w-0 max-w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 lg:gap-7">
-          {displayCourses.map((course, idx) => {
+          {displayCourses.map((course) => {
             const price = course.price ?? 40;
             const originalPrice = course.originalPrice ?? price * 2;
             const discountPercent = course.discountPercent ?? 50;
             const lessonsCount = course.totalLessonsCount ?? (course.modules?.reduce((acc, m) => acc + m.lessons.length, 0) || 12);
+            
+            // Check if signed-in student has an approved / active enrollment for this course
+            const isEnrolled = Boolean(
+              isStudentSignedIn &&
+              enrolledCourseIds &&
+              (
+                enrolledCourseIds.includes(course.id) || 
+                enrolledCourseIds.includes(course.title) ||
+                (course.slug && enrolledCourseIds.includes(course.slug))
+              )
+            );
 
             return (
               <div
                 key={course.id}
-                onClick={() => onSelectCourse(course)}
-                className="group flex flex-col justify-between rounded-2xl bg-white dark:bg-[#111622] border border-slate-200/90 dark:border-slate-800/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-emerald-500/50 dark:hover:border-emerald-500/40 transition-all duration-300 cursor-pointer w-full min-w-0 max-w-full"
+                onClick={() => {
+                  if (isEnrolled && onResumeLearning) {
+                    onResumeLearning(course);
+                  } else {
+                    onSelectCourse(course);
+                  }
+                }}
+                className={`group flex flex-col justify-between rounded-2xl bg-white dark:bg-[#111622] border overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer w-full min-w-0 max-w-full ${
+                  isEnrolled 
+                    ? 'border-emerald-500/40 hover:border-emerald-500 ring-1 ring-emerald-500/20' 
+                    : 'border-slate-200/90 dark:border-slate-800/90 hover:border-emerald-500/50 dark:hover:border-emerald-500/40'
+                }`}
               >
                 {/* Top Image / Banner Area */}
                 <div>
@@ -83,7 +110,17 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
                       </span>
                     </div>
 
-                    {/* Instructor circular portrait inset (as seen in inspo) */}
+                    {/* Enrolled Badge on top-right if already enrolled */}
+                    {isEnrolled && (
+                      <div className="absolute top-3 right-3">
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs border border-emerald-400/40 backdrop-blur-md">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Enrolled</span>
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Instructor circular portrait inset */}
                     <div className="absolute bottom-2.5 right-3 flex items-center space-x-1.5 bg-black/70 backdrop-blur-md px-2 py-1 rounded-full border border-white/15">
                       <img
                         src={course.instructor.avatar}
@@ -119,26 +156,42 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
                   </div>
                 </div>
 
-                {/* Bottom Row: Pricing Tag, Discount, & Difficulty Level */}
+                {/* Bottom Row: Resume Learning (if enrolled) OR Pricing Tag, Discount, & Difficulty Level */}
                 <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-1">
                   {/* Thin divider line */}
                   <div className="w-full border-t border-slate-100 dark:border-slate-800/90 mb-3.5" />
 
                   <div className="flex items-center justify-between gap-2">
-                    {/* Price, Original Price, and Discount in unified orange pill */}
-                    <div className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 py-1 rounded-lg bg-[#F97316] text-white shadow-2xs shadow-orange-500/20 whitespace-nowrap">
-                      <span className="font-extrabold text-xs sm:text-sm text-white">
-                        ${price}
-                      </span>
-                      
-                      <span className="text-sm text-white/90 line-through">
-                        ${originalPrice}
-                      </span>
+                    {isEnrolled ? (
+                      /* Enrolled State: Do NOT display price - show Resume Learning taking directly to dashboard */
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onResumeLearning) onResumeLearning(course);
+                        }}
+                        className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold shadow-xs hover:shadow-md transition-all cursor-pointer whitespace-nowrap group/btn"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Resume Learning</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
+                      </button>
+                    ) : (
+                      /* Non-enrolled / Visitor State: Price, Original Price, and Discount in unified orange pill */
+                      <div className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 py-1 rounded-lg bg-[#F97316] text-white shadow-2xs shadow-orange-500/20 whitespace-nowrap">
+                        <span className="font-extrabold text-xs sm:text-sm text-white">
+                          ${price}
+                        </span>
+                        
+                        <span className="text-sm text-white/90 line-through">
+                          ${originalPrice}
+                        </span>
 
-                      <span className="text-[11px] font-bold text-white">
-                        -{discountPercent}%
-                      </span>
-                    </div>
+                        <span className="text-[11px] font-bold text-white">
+                          -{discountPercent}%
+                        </span>
+                      </div>
+                    )}
 
                     {/* Difficulty Level Badge */}
                     <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full tracking-wider ${getLevelBadgeClasses(course.level)}`}>

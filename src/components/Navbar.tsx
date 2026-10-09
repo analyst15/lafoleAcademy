@@ -597,7 +597,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           >
                             <span className="font-semibold flex items-center space-x-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              <span>Admin Payments (/admin)</span>
+                              <span>Admin</span>
                             </span>
                             <ArrowRight className="w-3.5 h-3.5 text-emerald-500" />
                           </button>
@@ -857,7 +857,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full h-10 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer"
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Admin Payments (/admin)</span>
+                    <span>Admin</span>
                   </button>
 
                   {onSignOut && (

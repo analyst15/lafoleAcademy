@@ -26,6 +26,8 @@ import { Course, Lesson, Module } from '../types';
 
 interface CourseDetailsPageProps {
   course: Course;
+  isEnrolled?: boolean;
+  onResumeLearning?: (course: Course) => void;
   onEnroll: (course: Course) => void;
   onBackToCatalog: () => void;
   onBackToHome: () => void;
@@ -33,6 +35,8 @@ interface CourseDetailsPageProps {
 
 export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   course,
+  isEnrolled = false,
+  onResumeLearning,
   onEnroll,
   onBackToCatalog,
   onBackToHome,
@@ -597,29 +601,56 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
               {/* Price & Action Buttons */}
               <div className="p-6 space-y-5">
                 
-                {/* Price Display */}
-                <div className="flex items-baseline space-x-3">
-                  <span className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                    ${price}
-                  </span>
-                  <span className="text-base text-slate-400 line-through">
-                    ${originalPrice}
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-[#22C55E] text-xs font-bold rounded-md">
-                    50% off
-                  </span>
-                </div>
+                {/* Price Display or Enrolled Banner */}
+                {isEnrolled ? (
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-[#22C55E] text-xs font-bold rounded-lg border border-emerald-500/30">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Enrolled • Course Active</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      You have full unlocked access to this course and all diploma lectures.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-baseline space-x-3">
+                    <span className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                      ${price}
+                    </span>
+                    <span className="text-base text-slate-400 line-through">
+                      ${originalPrice}
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-[#22C55E] text-xs font-bold rounded-md">
+                      50% off
+                    </span>
+                  </div>
+                )}
 
                 {/* Main Action Buttons */}
                 <div className="space-y-2.5">
-                  <button
-                    id="btn-enroll-course"
-                    onClick={() => onEnroll(course)}
-                    className="w-full py-3 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
-                  >
-                    <span>Enroll for ${price}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {isEnrolled ? (
+                    <button
+                      id="btn-resume-course"
+                      onClick={() => {
+                        if (onResumeLearning) onResumeLearning(course);
+                        else onEnroll(course);
+                      }}
+                      className="w-full py-3 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Resume Learning</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      id="btn-enroll-course"
+                      onClick={() => onEnroll(course)}
+                      className="w-full py-3 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+                    >
+                      <span>Enroll for ${price}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
 
                   <button
                     onClick={handleSaveToggle}
