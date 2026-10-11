@@ -1071,6 +1071,7 @@ export default function App() {
           <HeroSection
             onBrowseCourses={() => navigateTo('catalog')}
             onViewTracks={() => navigateTo('diplomas')}
+            onContactUs={() => navigateTo('contact')}
             onSelectFeaturedCourse={navigateToCourse}
             featuredCourse={courses[0]}
           />
