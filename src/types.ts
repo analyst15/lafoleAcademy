@@ -179,7 +179,7 @@ export interface PaymentRecord {
   course_title?: string;
   amount: number;
   currency: string;
-  payment_method: 'EVC Plus' | 'eDahab' | 'ZAAD' | string;
+  payment_method: 'EVC Plus' | 'eDahab' | 'Ebirr' | 'ZAAD' | string;
   transaction_reference: string;
   sender_phone: string;
   proof_url?: string;

@@ -1110,7 +1110,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                                 {searchQuery || statusFilter !== 'all'
                                   ? 'Try adjusting your search query or status filter.'
-                                  : 'Real student payment submissions made via EVC Plus, eDahab, or ZAAD at checkout will appear here for verification.'}
+                                  : 'Real student payment submissions made via EVC Plus, eDahab, or Ebirr at checkout will appear here for verification.'}
                               </p>
                             </div>
                           </td>

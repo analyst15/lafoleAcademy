@@ -19,7 +19,7 @@ export interface PendingOrderDetails {
   orderReference: string;
   courseTitle: string;
   courseThumbnail?: string;
-  manualCurrency: 'EVC Plus' | 'eDahab' | 'ZAAD';
+  manualCurrency: 'EVC Plus' | 'eDahab' | 'Ebirr' | 'ZAAD' | string;
   recipientNumber: string;
   recipientName: string;
   amountPaid: string;

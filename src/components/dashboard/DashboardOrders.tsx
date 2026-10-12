@@ -70,8 +70,8 @@ export const DashboardOrders: React.FC<DashboardOrdersProps> = ({
 
             let method = 'Online Payment';
             if (data.paymentMethod === 'card') method = 'Credit / Debit Card';
-            else if (['EVC Plus', 'eDahab', 'ZAAD'].includes(data.paymentMethod)) method = `${data.paymentMethod} (Manual Transfer)`;
-            else if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / Zaad)';
+            else if (['EVC Plus', 'eDahab', 'Ebirr', 'ZAAD'].includes(data.paymentMethod)) method = `${data.paymentMethod} (Manual Transfer)`;
+            else if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / eBirr)';
             else if (data.paymentMethod) method = data.paymentMethod;
 
             retrievedOrders.push({

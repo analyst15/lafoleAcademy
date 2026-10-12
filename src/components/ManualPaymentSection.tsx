@@ -19,8 +19,8 @@ import {
 export interface ManualPaymentSectionProps {
   finalPrice: number;
   orderReference: string;
-  manualCurrency: 'EVC Plus' | 'eDahab' | 'ZAAD';
-  setManualCurrency: (currency: 'EVC Plus' | 'eDahab' | 'ZAAD') => void;
+  manualCurrency: 'EVC Plus' | 'eDahab' | 'Ebirr' | 'ZAAD';
+  setManualCurrency: (currency: 'EVC Plus' | 'eDahab' | 'Ebirr' | 'ZAAD') => void;
   paymentReference: string;
   setPaymentReference: (ref: string) => void;
   amountPaid: string;
@@ -153,7 +153,7 @@ export const ManualPaymentSection: React.FC<ManualPaymentSectionProps> = ({
               Choose Currency / Payment Service:
             </label>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {(['EVC Plus', 'eDahab', 'ZAAD'] as const).map((curr) => {
+              {(['EVC Plus', 'eDahab', 'Ebirr'] as const).map((curr) => {
                 const isSelected = manualCurrency === curr;
                 return (
                   <button

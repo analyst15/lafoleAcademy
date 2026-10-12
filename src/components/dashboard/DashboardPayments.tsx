@@ -64,8 +64,8 @@ export const DashboardPayments: React.FC<DashboardPaymentsProps> = ({
             const payStatus = isPaid ? 'PAID' : (data.status === 'pending_payment_verification' ? 'PENDING VERIFICATION' : 'PENDING');
 
             let method = 'Credit / Debit Card';
-            if (['EVC Plus', 'eDahab', 'ZAAD'].includes(data.paymentMethod)) method = `${data.paymentMethod} (Manual)`;
-            else if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / Zaad)';
+            if (['EVC Plus', 'eDahab', 'Ebirr', 'ZAAD'].includes(data.paymentMethod)) method = `${data.paymentMethod} (Manual)`;
+            else if (data.paymentMethod === 'mobile_money') method = 'Mobile Money (EVC Plus / eBirr)';
             else if (data.paymentMethod === 'card') method = 'Credit / Debit Card';
             else if (data.paymentMethod) method = data.paymentMethod;
 

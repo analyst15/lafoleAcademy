@@ -1907,7 +1907,7 @@ export async function getAdminPayments(): Promise<PaymentTableRecord[]> {
     const enrSnap = await getDocs(collection(db, 'enrollments'));
     enrSnap.forEach((docSnap) => {
       const d = docSnap.data();
-      if (d.transactionRef && (d.manualCurrency || ['EVC Plus', 'eDahab', 'ZAAD'].includes(d.paymentMethod))) {
+      if (d.transactionRef && (d.manualCurrency || ['EVC Plus', 'eDahab', 'Ebirr', 'ZAAD'].includes(d.paymentMethod))) {
         const txRef = String(d.transactionRef).trim();
         // Check if this transaction reference or order is already represented in paymentMap
         const alreadyExists = Array.from(paymentMap.values()).some(

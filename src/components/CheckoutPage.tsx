@@ -140,7 +140,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [cardName, setCardName] = useState('');
 
   // Manual Mobile Payment Processing State
-  const [manualCurrency, setManualCurrency] = useState<'EVC Plus' | 'eDahab' | 'ZAAD'>('EVC Plus');
+  const [manualCurrency, setManualCurrency] = useState<'EVC Plus' | 'eDahab' | 'Ebirr' | 'ZAAD'>('EVC Plus');
   const [orderReference, setOrderReference] = useState<string>(() => getNextOrderRef());
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
@@ -1563,7 +1563,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                       <Smartphone className="w-5 h-5 text-slate-400" />
                       <div>
                         <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Evc, Zaad, eBirr, eDahab, &amp; Xawaalad
+                          EVC Plus, eDahab, eBirr, &amp; Xawaalad
                         </div>
                         <div className="text-xs text-slate-400">
                           Manual — admin confirms payment
