@@ -35,6 +35,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { COUNTRIES, CountryOption } from '../data/countries';
 import { ManualPaymentSection } from './ManualPaymentSection';
 import { PendingVerificationModal, PendingOrderDetails } from './PendingVerificationModal';
+import { getStoredCart, addCourseToCart, clearCart } from '../utils/cartUtils';
 
 const getNextOrderRef = (): string => {
   if (typeof window === 'undefined') return 'LA-2026-0001';
@@ -175,6 +176,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }, 1000);
     return () => clearInterval(timer);
   }, [resendCooldown]);
+
+  // Ensure current checkout course is saved in cart if cart is currently empty
+  useEffect(() => {
+    const current = getStoredCart();
+    if (current.length === 0 && course) {
+      const updated = addCourseToCart(course);
+      window.dispatchEvent(new CustomEvent('lafole_cart_updated', { detail: updated }));
+    }
+  }, [course]);
 
   const cartDisplayItems = useMemo(() => {
     if (cartItems && cartItems.length > 0) {
@@ -383,6 +393,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
       setPendingOrderDetails(pendingDetails);
       setIsPendingOrderModalOpen(true);
+      clearCart();
       showToast('Payment submitted! Your order is PENDING PAYMENT VERIFICATION.');
     } catch (err: any) {
       showToast("Error submitting payment: " + (err?.message || "Please retry."));

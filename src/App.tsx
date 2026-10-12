@@ -172,7 +172,21 @@ export default function App() {
   });
   const [searchModalOpen, setSearchModalOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => getStoredCart());
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    const stored = getStoredCart();
+    if (stored.length > 0) return stored;
+    if (initialRoute.view === 'cart' && initialRoute.courseParamId) {
+      const all = getAll93Courses();
+      const found = all.find(c => 
+        c.id === initialRoute.courseParamId || 
+        c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === initialRoute.courseParamId
+      );
+      if (found) {
+        return addCourseToCart(found);
+      }
+    }
+    return stored;
+  });
   const cartCount = cartItems.length;
 
   useEffect(() => {
@@ -450,6 +464,9 @@ export default function App() {
       if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
         setActiveLesson(course.modules[0].lessons[0]);
       }
+      // Persist the course to cart in localStorage and update component state
+      const updated = addCourseToCart(course);
+      setCartItems(updated);
     }
     setIsCheckoutMode(checkout);
     setActiveView('cart');
@@ -465,6 +482,11 @@ export default function App() {
   const navigateToCheckout = useCallback((course: Course) => {
     navigateToCart(true, course);
   }, [navigateToCart]);
+
+  const handleAddToCartOnly = useCallback((course: Course) => {
+    const updated = addCourseToCart(course);
+    setCartItems(updated);
+  }, []);
 
   // Dedicated Dashboard Navigation supporting /dashboard and all subroutes
   const navigateToDashboard = useCallback((tab: DashboardTab = 'dashboard', overrideEmail?: string) => {
@@ -1008,6 +1030,9 @@ export default function App() {
       }
       return updated;
     });
+    // Remove enrolled course from cart
+    const updatedCart = removeCourseFromCart(course.id);
+    setCartItems(updatedCart);
     setActiveCourse(course);
     if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
       setActiveLesson(course.modules[0].lessons[0]);
@@ -1263,6 +1288,9 @@ export default function App() {
               navigateToDashboard('mylearning');
             }}
             onEnroll={navigateToCheckout}
+            onAddToCart={handleAddToCartOnly}
+            onViewCart={() => navigateToCart(false)}
+            isInCart={cartItems.some(i => i.courseId === activeCourse.id)}
             onBackToCatalog={() => navigateTo('catalog')}
             onBackToHome={() => navigateTo('home')}
           />

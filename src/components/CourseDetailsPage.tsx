@@ -20,7 +20,8 @@ import {
   Sparkles,
   Lock,
   Layers,
-  ChevronRight
+  ChevronRight,
+  ShoppingCart
 } from 'lucide-react';
 import { Course, Lesson, Module } from '../types';
 
@@ -29,6 +30,9 @@ interface CourseDetailsPageProps {
   isEnrolled?: boolean;
   onResumeLearning?: (course: Course) => void;
   onEnroll: (course: Course) => void;
+  onAddToCart?: (course: Course) => void;
+  onViewCart?: () => void;
+  isInCart?: boolean;
   onBackToCatalog: () => void;
   onBackToHome: () => void;
 }
@@ -38,6 +42,9 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
   isEnrolled = false,
   onResumeLearning,
   onEnroll,
+  onAddToCart,
+  onViewCart,
+  isInCart = false,
   onBackToCatalog,
   onBackToHome,
 }) => {
@@ -642,14 +649,37 @@ export const CourseDetailsPage: React.FC<CourseDetailsPageProps> = ({
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   ) : (
-                    <button
-                      id="btn-enroll-course"
-                      onClick={() => onEnroll(course)}
-                      className="w-full py-3 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <span>Enroll for ${price}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        id="btn-enroll-course"
+                        onClick={() => onEnroll(course)}
+                        className="w-full py-3 px-4 bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+                      >
+                        <span>Enroll for ${price}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        id="btn-add-to-cart"
+                        onClick={() => {
+                          if (isInCart) {
+                            if (onViewCart) onViewCart();
+                          } else {
+                            if (onAddToCart) onAddToCart(course);
+                            setToastMessage(`"${course.title}" added to your cart!`);
+                            setTimeout(() => setToastMessage(null), 3500);
+                          }
+                        }}
+                        className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center space-x-2 cursor-pointer border ${
+                          isInCart
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/90'
+                            : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:border-emerald-500 text-slate-800 dark:text-slate-200 hover:text-emerald-600'
+                        }`}
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        <span>{isInCart ? 'In Cart • View Cart' : 'Add to Cart'}</span>
+                      </button>
+                    </>
                   )}
 
                   <button
