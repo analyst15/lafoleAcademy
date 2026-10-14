@@ -18,6 +18,7 @@ interface CourseCatalogProps {
   activeCourse: Course;
   onSelectCourse: (course: Course) => void;
   onStartCourse: (course: Course) => void;
+  onEnrollCourse?: (course: Course) => void;
   courseProgress: CourseProgress;
   lessonProgressMap: Record<string, LessonProgress>;
 }
@@ -27,6 +28,7 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
   activeCourse,
   onSelectCourse,
   onStartCourse,
+  onEnrollCourse,
   courseProgress,
   lessonProgressMap
 }) => {
@@ -186,7 +188,13 @@ export const CourseCatalog: React.FC<CourseCatalogProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onStartCourse(course);
+                      if (percent > 0) {
+                        onStartCourse(course);
+                      } else if (onEnrollCourse) {
+                        onEnrollCourse(course);
+                      } else {
+                        onStartCourse(course);
+                      }
                     }}
                     className="flex items-center space-x-1 px-2.5 sm:px-3.5 py-1.5 bg-[#22C55E] hover:bg-[#16A34A] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-all hover:scale-[1.02] cursor-pointer flex-shrink-0"
                   >

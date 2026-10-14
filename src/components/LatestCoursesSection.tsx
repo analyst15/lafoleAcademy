@@ -8,6 +8,7 @@ interface LatestCoursesSectionProps {
   isStudentSignedIn?: boolean;
   onSelectCourse: (course: Course) => void;
   onResumeLearning?: (course: Course) => void;
+  onEnrollCourse?: (course: Course) => void;
   onOpenFullCatalog: () => void;
 }
 
@@ -17,6 +18,7 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
   isStudentSignedIn = false,
   onSelectCourse,
   onResumeLearning,
+  onEnrollCourse,
   onOpenFullCatalog
 }) => {
   // Display the latest 8 courses (matching the 2x4 grid in the reference mockup)
@@ -177,19 +179,44 @@ export const LatestCoursesSection: React.FC<LatestCoursesSectionProps> = ({
                         <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
                       </button>
                     ) : (
-                      /* Non-enrolled / Visitor State: Price, Original Price, and Discount in unified orange pill */
-                      <div className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 py-1 rounded-lg bg-[#F97316] text-white shadow-2xs shadow-orange-500/20 whitespace-nowrap">
-                        <span className="font-extrabold text-xs sm:text-sm text-white">
-                          ${price}
-                        </span>
-                        
-                        <span className="text-sm text-white/90 line-through">
-                          ${originalPrice}
-                        </span>
+                      /* Non-enrolled / Visitor State: Price and Quick Enroll CTA */
+                      <div className="flex items-center space-x-2">
+                        <div 
+                          onClick={(e) => {
+                            if (onEnrollCourse) {
+                              e.stopPropagation();
+                              onEnrollCourse(course);
+                            }
+                          }}
+                          className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 py-1 rounded-lg bg-[#F97316] hover:bg-[#ea580c] text-white shadow-2xs shadow-orange-500/20 whitespace-nowrap cursor-pointer transition-colors"
+                          title="Click to enroll now"
+                        >
+                          <span className="font-extrabold text-xs sm:text-sm text-white">
+                            ${price}
+                          </span>
+                          
+                          <span className="text-sm text-white/90 line-through">
+                            ${originalPrice}
+                          </span>
 
-                        <span className="text-[11px] font-bold text-white">
-                          -{discountPercent}%
-                        </span>
+                          <span className="text-[11px] font-bold text-white">
+                            -{discountPercent}%
+                          </span>
+                        </div>
+
+                        {onEnrollCourse && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEnrollCourse(course);
+                            }}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-[#22C55E] hover:text-white text-[#16A34A] dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 text-xs font-bold transition-all cursor-pointer"
+                          >
+                            <span>Enroll</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     )}
 

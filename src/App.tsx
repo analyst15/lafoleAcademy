@@ -32,9 +32,7 @@ import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { LatestCoursesSection } from './components/LatestCoursesSection';
 import { CourseCatalog } from './components/CourseCatalog';
-import { DiplomaProgramsSection } from './components/DiplomaProgramsSection';
 import { CatalogPage } from './components/CatalogPage';
-import { DiplomasPage } from './components/DiplomasPage';
 import { BooksPage } from './components/BooksPage';
 import { ContactPage } from './components/ContactPage';
 import { CourseDetailsPage } from './components/CourseDetailsPage';
@@ -117,7 +115,7 @@ export function parseRouteFromLocation(): {
   } else if (effectiveRoute === '/catalog' || effectiveRoute.startsWith('/catalog')) {
     view = 'catalog';
   } else if (effectiveRoute === '/diplomas' || effectiveRoute.startsWith('/diplomas')) {
-    view = 'diplomas';
+    view = 'catalog'; // Diplomas page is hidden, redirecting to course catalog
   } else if (effectiveRoute === '/books' || effectiveRoute.startsWith('/books')) {
     view = 'books';
   } else if (effectiveRoute === '/login' || effectiveRoute.startsWith('/login')) {
@@ -190,15 +188,19 @@ export default function App() {
   const cartCount = cartItems.length;
 
   useEffect(() => {
-    const handleCartSync = (e: any) => {
-      if (e.detail && Array.isArray(e.detail)) {
+    const handleCartSync = (e?: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
         setCartItems(e.detail);
       } else {
         setCartItems(getStoredCart());
       }
     };
     window.addEventListener('lafole_cart_updated', handleCartSync);
-    return () => window.removeEventListener('lafole_cart_updated', handleCartSync);
+    window.addEventListener('storage', handleCartSync);
+    return () => {
+      window.removeEventListener('lafole_cart_updated', handleCartSync);
+      window.removeEventListener('storage', handleCartSync);
+    };
   }, []);
 
   // Sync courses dynamically from Firestore (respecting Admin CRUD additions, updates and removals)
@@ -584,6 +586,11 @@ export default function App() {
   }, [verifiedEmail, isEmailVerified]);
 
   const navigateTo = useCallback((view: AppView) => {
+    // Keep cart in sync on every navigation transition
+    setCartItems(getStoredCart());
+    if (view === 'diplomas') {
+      view = 'catalog';
+    }
     if (view === 'cart') {
       navigateToCart(false, activeCourse);
       return;
@@ -600,8 +607,6 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const targetPath = view === 'catalog' 
         ? '/catalog' 
-        : view === 'diplomas' 
-        ? '/diplomas' 
         : view === 'books' 
         ? '/books' 
         : view === 'learn' 
@@ -630,6 +635,7 @@ export default function App() {
       const current = parseRouteFromLocation();
       setDashboardTab(current.dashboardTab);
       setIsCheckoutMode(current.isCheckout);
+      setCartItems(getStoredCart());
 
       if (current.view === 'dashboard') {
         // Validate with database rather than assuming local state
@@ -1095,7 +1101,7 @@ export default function App() {
           {/* Exact Reference Hero Component */}
           <HeroSection
             onBrowseCourses={() => navigateTo('catalog')}
-            onViewTracks={() => navigateTo('diplomas')}
+            onViewTracks={() => navigateTo('catalog')}
             onContactUs={() => navigateTo('contact')}
             onSelectFeaturedCourse={navigateToCourse}
             featuredCourse={courses[0]}
@@ -1107,6 +1113,7 @@ export default function App() {
             enrolledCourseIds={enrolledCourseIds}
             isStudentSignedIn={isEmailVerified && Boolean(verifiedEmail)}
             onSelectCourse={navigateToCourse}
+            onEnrollCourse={navigateToCheckout}
             onResumeLearning={(course) => {
               setActiveCourse(course);
               if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
@@ -1123,25 +1130,9 @@ export default function App() {
             activeCourse={activeCourse}
             onSelectCourse={navigateToCourse}
             onStartCourse={navigateToCourse}
+            onEnrollCourse={navigateToCheckout}
             courseProgress={courseProgress}
             lessonProgressMap={lessonProgressMap}
-          />
-
-          {/* Lafole Diploma Programs Section (recreated from inspiration) */}
-          <DiplomaProgramsSection
-            onSelectTrack={(trackName) => {
-              const matching = courses.find((c) => 
-                c.title.toLowerCase().includes(trackName.toLowerCase().slice(0, 7)) ||
-                c.tags.some((t) => trackName.toLowerCase().includes(t.toLowerCase())) ||
-                trackName.toLowerCase().includes(c.category.toLowerCase())
-              );
-              if (matching) {
-                navigateToCourse(matching);
-              } else {
-                navigateTo('diplomas');
-              }
-            }}
-            onExploreAll={() => navigateTo('diplomas')}
           />
 
           {/* Footer Note */}
@@ -1153,9 +1144,6 @@ export default function App() {
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
               </div>
               <div className="flex items-center space-x-4">
-                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
-                  Diploma Tracks
-                </button>
                 <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
                   Courses
                 </button>
@@ -1177,50 +1165,6 @@ export default function App() {
         </main>
       )}
 
-      {/* View: Dedicated /diplomas Page (Directly matches reference screenshot) */}
-      {activeView === 'diplomas' && (
-        <div className="flex-1 flex flex-col">
-          <DiplomasPage
-            courses={courses}
-            onSelectTrack={(track) => {
-              const matched = courses.find(c => 
-                c.title.toLowerCase().includes(track.courseNames[0].toLowerCase().slice(0, 10)) ||
-                c.category.toLowerCase().includes(track.category.toLowerCase().slice(0, 5))
-              ) || courses[0];
-              navigateToCourse(matched);
-            }}
-            onStartCourse={navigateToCourse}
-            onBackToHome={() => navigateTo('home')}
-          />
-          <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
-            <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
-                <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
-                <span>•</span>
-                <span>Hoyga Tababarka injineerada Mustaqbalka</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
-                  Home
-                </button>
-                <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
-                  Course Catalog
-                </button>
-                <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
-                  Progress Tracker
-                </button>
-                <button onClick={() => navigateTo('instructor')} className="hover:text-[#22C55E]">
-                  Instructor Studio
-                </button>
-                <button onClick={handleResetProgress} className="hover:text-amber-500">
-                  Reset Demo State
-                </button>
-              </div>
-            </div>
-          </footer>
-        </div>
-      )}
-
       {/* View: Dedicated /catalog Page (Separate Page with Alert and All 93 Courses) */}
       {activeView === 'catalog' && (
         <div className="flex-1 flex flex-col">
@@ -1229,6 +1173,7 @@ export default function App() {
             enrolledCourseIds={enrolledCourseIds}
             isStudentSignedIn={isEmailVerified && Boolean(verifiedEmail)}
             onSelectCourse={navigateToCourse}
+            onEnrollCourse={navigateToCheckout}
             onResumeLearning={(course) => {
               setActiveCourse(course);
               if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
@@ -1248,9 +1193,6 @@ export default function App() {
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
                   Home
-                </button>
-                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
-                  8 Diploma Tracks
                 </button>
                 <button onClick={() => navigateTo('books')} className="hover:text-[#22C55E]">
                   Books & Manuals
@@ -1308,9 +1250,6 @@ export default function App() {
                 <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
                   All Courses
                 </button>
-                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
-                  8 Diploma Tracks
-                </button>
                 <button onClick={() => navigateTo('books')} className="hover:text-[#22C55E]">
                   Books & Manuals
                 </button>
@@ -1358,9 +1297,6 @@ export default function App() {
                 </button>
                 <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
                   All Courses
-                </button>
-                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
-                  8 Diploma Tracks
                 </button>
                 <button onClick={() => navigateTo('books')} className="hover:text-[#22C55E]">
                   Books & Manuals
@@ -1430,9 +1366,6 @@ export default function App() {
                 <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
                   Course Catalog
                 </button>
-                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
-                  8 Diploma Tracks
-                </button>
                 <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
                   Progress Tracker
                 </button>
@@ -1471,9 +1404,6 @@ export default function App() {
                 </button>
                 <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
                   Course Catalog
-                </button>
-                <button onClick={() => navigateTo('diplomas')} className="hover:text-[#22C55E]">
-                  8 Diploma Tracks
                 </button>
                 <button onClick={() => navigateTo('books')} className="hover:text-[#22C55E]">
                   Books &amp; Manuals
@@ -1697,7 +1627,7 @@ export default function App() {
           onTabChange={(tab) => navigateToDashboard(tab)}
           onBackToHome={() => navigateTo('home')}
           onExploreCourses={() => navigateTo('catalog')}
-          onExploreDiplomas={() => navigateTo('diplomas')}
+          onExploreDiplomas={() => navigateTo('catalog')}
           onBrowseBooks={() => navigateTo('books')}
           onResumeCourse={(c) => {
             setActiveCourse(c);
@@ -1903,7 +1833,7 @@ export default function App() {
               <input
                 type="text"
                 autoFocus
-                placeholder="Search diploma tracks, video lectures, and quizzes..."
+                placeholder="Search courses, video lectures, and quizzes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"

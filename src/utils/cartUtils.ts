@@ -62,6 +62,7 @@ export function clearCart(): CartItem[] {
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify([]));
       window.dispatchEvent(new CustomEvent('lafole_cart_updated', { detail: [] }));
+      window.dispatchEvent(new Event('storage'));
     } catch (e) {
       console.error('Error clearing cart from storage:', e);
     }
@@ -74,6 +75,7 @@ export function saveCart(items: CartItem[]): void {
   try {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
     window.dispatchEvent(new CustomEvent('lafole_cart_updated', { detail: items }));
+    window.dispatchEvent(new Event('storage'));
   } catch (e) {
     console.error('Error saving cart to storage:', e);
   }

@@ -23,6 +23,7 @@ interface CatalogPageProps {
   isStudentSignedIn?: boolean;
   onSelectCourse: (course: Course) => void;
   onResumeLearning?: (course: Course) => void;
+  onEnrollCourse?: (course: Course) => void;
   onBackToHome: () => void;
 }
 
@@ -32,6 +33,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   isStudentSignedIn = false,
   onSelectCourse,
   onResumeLearning,
+  onEnrollCourse,
   onBackToHome
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -503,10 +505,19 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                           </div>
 
                           {/* Quick action button */}
-                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-[#2E8B57] dark:group-hover:text-emerald-400 flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              if (onEnrollCourse) {
+                                e.stopPropagation();
+                                onEnrollCourse(course);
+                              }
+                            }}
+                            className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-[#2E8B57] dark:group-hover:text-emerald-400 flex items-center space-x-1 cursor-pointer bg-transparent border-0 p-0"
+                          >
                             <span>Enroll</span>
                             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                          </span>
+                          </button>
                         </>
                       )}
                     </div>
@@ -607,7 +618,18 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                           </span>
                         </div>
 
-                        <button className="px-4 py-2 bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 rounded-full text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors">
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            if (onEnrollCourse) {
+                              e.stopPropagation();
+                              onEnrollCourse(course);
+                            } else {
+                              onSelectCourse(course);
+                            }
+                          }}
+                          className="px-4 py-2 bg-slate-900 hover:bg-black text-white dark:bg-white dark:text-slate-900 rounded-full text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                        >
                           <span>Start</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>

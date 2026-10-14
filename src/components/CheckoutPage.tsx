@@ -177,12 +177,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Ensure current checkout course is saved in cart if cart is currently empty
+  // Ensure current checkout course is saved in cart whenever visiting checkout
   useEffect(() => {
-    const current = getStoredCart();
-    if (current.length === 0 && course) {
-      const updated = addCourseToCart(course);
-      window.dispatchEvent(new CustomEvent('lafole_cart_updated', { detail: updated }));
+    if (course) {
+      const current = getStoredCart();
+      const alreadyInCart = current.some((item) => item.courseId === course.id);
+      if (!alreadyInCart) {
+        const updated = addCourseToCart(course);
+        window.dispatchEvent(new CustomEvent('lafole_cart_updated', { detail: updated }));
+      }
     }
   }, [course]);
 

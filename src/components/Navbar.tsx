@@ -220,7 +220,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="nav-dropdown-learn-trigger"
                   onClick={() => setLearnDropdownOpen(!learnDropdownOpen)}
                   className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-[14.5px] sm:text-[15px] font-[500] transition-colors hover:text-black dark:hover:text-white cursor-pointer ${
-                    activeView === 'learn' || activeView === 'catalog' || activeView === 'diplomas' || activeView === 'books'
+                    activeView === 'learn' || activeView === 'catalog' || activeView === 'books'
                       ? 'text-[#22C55E] dark:text-[#22C55E] font-[600]' 
                       : 'text-[#374151] dark:text-slate-200'
                   }`}
@@ -229,7 +229,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ChevronDown className={`w-3.5 h-3.5 text-[#52525B] dark:text-slate-400 transition-transform duration-200 ${learnDropdownOpen ? 'rotate-180 text-[#22C55E]' : ''}`} />
                 </button>
 
-                {/* Dropdown Menu: Courses, Diplomas, Books (Clean, without badges or resume section) */}
+                {/* Dropdown Menu: Courses, Books (Clean, without badges or resume section) */}
                 {learnDropdownOpen && (
                   <div 
                     id="nav-dropdown-learn-menu"
@@ -265,31 +265,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </button>
 
-                      {/* 2. Diplomas */}
-                      <button
-                        id="dropdown-item-diplomas"
-                        onClick={() => {
-                          setActiveView('diplomas');
-                          setLearnDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center space-x-3 cursor-pointer group ${
-                          activeView === 'diplomas'
-                            ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200'
-                        }`}
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/80 flex items-center justify-center text-indigo-600 dark:text-indigo-400 flex-shrink-0 group-hover:scale-105 transition-transform">
-                          <Award className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-[13px] text-slate-900 dark:text-white">
-                            Diplomas
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                            Multi-course paths into a real job
-                          </div>
-                        </div>
-                      </button>
 
                       {/* 3. Books */}
                       <button
@@ -417,7 +392,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <BarChart3 className="w-4 h-4 text-[#22C55E]" />
                       <div>
                         <div className="font-semibold">My Student Dashboard</div>
-                        <div className="text-[10px] text-slate-400">Courses, diplomas, certificates & labs</div>
+                        <div className="text-[10px] text-slate-400">Courses, certificates & study guides</div>
                       </div>
                     </button>
                     <button 
@@ -703,7 +678,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center space-x-2.5 w-full h-11 px-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl cursor-pointer text-slate-400 text-xs shadow-2xs hover:border-[#22C55E] transition-colors"
             >
               <Search className="w-4 h-4 text-slate-400" />
-              <span>Search 93+ courses, diplomas, topics...</span>
+              <span>Search courses, lectures, topics...</span>
             </div>
 
             {/* Main Navigation Items */}
@@ -747,23 +722,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </button>
 
-              <button
-                onClick={() => {
-                  setActiveView('diplomas');
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-                  activeView === 'diplomas'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-[#16A34A] dark:text-emerald-400'
-                    : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                <span className="flex items-center space-x-3">
-                  <Award className="w-4 h-4 text-indigo-500" />
-                  <span>8 Diploma Tracks</span>
-                </span>
-                <ArrowRight className="w-3.5 h-3.5 opacity-40" />
-              </button>
 
               <button
                 onClick={() => {
