@@ -446,6 +446,7 @@ export default function App() {
   // Unique course page navigation with dedicated URL
   const navigateToCourse = useCallback((course: Course) => {
     setActiveCourse(course);
+    setCartItems(getStoredCart());
     if (course.modules && course.modules.length > 0 && course.modules[0].lessons.length > 0) {
       setActiveLesson(course.modules[0].lessons[0]);
     }
@@ -672,6 +673,11 @@ export default function App() {
       navigateToDashboard(initialRoute.dashboardTab);
     }
   }, [initialRoute, navigateToDashboard]);
+
+  // Always keep cart synchronized from storage whenever view changes
+  useEffect(() => {
+    setCartItems(getStoredCart());
+  }, [activeView]);
 
   // Sync dark mode class with root and localStorage
   useEffect(() => {
@@ -1281,6 +1287,7 @@ export default function App() {
             userFullName={verifiedFullName}
             cartItems={cartItems}
             onRemoveCartItem={handleRemoveFromCart}
+            onCartUpdate={(items) => setCartItems(items)}
             isCheckoutMode={isCheckoutMode}
             onToggleCheckoutMode={(chk) => navigateToCart(chk, activeCourse)}
           />

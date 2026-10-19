@@ -496,7 +496,16 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                       ) : (
                         <>
                           {/* Unified Orange Price Badge with White Font */}
-                          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F97316] text-white shadow-xs">
+                          <div 
+                            onClick={(e) => {
+                              if (onEnrollCourse) {
+                                e.stopPropagation();
+                                onEnrollCourse(course);
+                              }
+                            }}
+                            className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#F97316] text-white shadow-xs cursor-pointer hover:bg-[#ea580c] transition-colors"
+                            title="Click to enroll now"
+                          >
                             <span className="font-extrabold text-sm text-white">${course.price}</span>
                             <span className="line-through text-xs text-white/80 font-normal">${course.originalPrice}</span>
                             <span className="text-[10px] font-black uppercase text-white tracking-tight bg-black/20 px-1 py-0.5 rounded">

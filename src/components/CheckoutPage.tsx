@@ -72,6 +72,7 @@ interface CheckoutPageProps {
   userFullName?: string;
   cartItems?: any[];
   onRemoveCartItem?: (courseId: string) => void;
+  onCartUpdate?: (items: any[]) => void;
   isCheckoutMode?: boolean;
   onToggleCheckoutMode?: (checkout: boolean) => void;
 }
@@ -89,6 +90,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   userFullName = '',
   cartItems = [],
   onRemoveCartItem,
+  onCartUpdate,
   isCheckoutMode = false,
   onToggleCheckoutMode,
 }) => {
@@ -184,10 +186,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       const alreadyInCart = current.some((item) => item.courseId === course.id);
       if (!alreadyInCart) {
         const updated = addCourseToCart(course);
+        if (onCartUpdate) {
+          onCartUpdate(updated);
+        }
         window.dispatchEvent(new CustomEvent('lafole_cart_updated', { detail: updated }));
       }
     }
-  }, [course]);
+  }, [course, onCartUpdate]);
 
   const cartDisplayItems = useMemo(() => {
     if (cartItems && cartItems.length > 0) {
@@ -1119,6 +1124,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         {/* Top Back / Breadcrumbs */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-3 text-xs sm:text-sm font-medium">
+            <button
+              onClick={onBackToHome}
+              className="text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+            >
+              Home
+            </button>
+            <span className="text-slate-400">›</span>
             <button
               onClick={() => onToggleCheckoutMode ? onToggleCheckoutMode(false) : onBackToCatalog()}
               className="flex items-center space-x-1.5 text-[#22C55E] hover:underline cursor-pointer font-semibold"

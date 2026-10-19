@@ -64,21 +64,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Live Countdown Timer for Sales
-  const [countdown, setCountdown] = useState({ days: 2, hours: 7, mins: 4, secs: 12 });
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev.secs > 0) return { ...prev, secs: prev.secs - 1 };
-        if (prev.mins > 0) return { ...prev, mins: prev.mins - 1, secs: 59 };
-        if (prev.hours > 0) return { ...prev, hours: prev.hours - 1, mins: 59, secs: 59 };
-        if (prev.days > 0) return { ...prev, days: prev.days - 1, hours: 23, mins: 59, secs: 59 };
-        return prev;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const handleCopyCode = () => {
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(referralCode);
@@ -104,22 +89,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
     return (
     <div className="space-y-6 sm:space-y-8 animate-fadeIn">
-      {/* Top Date & Sales Countdown Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[13px] border-b border-slate-200 dark:border-slate-800 pb-4">
+      {/* Top Date Header */}
+      <div className="flex items-center justify-between gap-3 text-[13px] border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="font-medium text-slate-500 dark:text-slate-400 tracking-wider uppercase flex items-center space-x-2 text-[12px]">
           <Clock className="w-3.5 h-3.5 text-[#22C55E]" />
           <span>{timeString || 'WEDNESDAY, 23 SEPT 2026 - 13:18 EAT'}</span>
-        </div>
-
-        {/* Live Sales countdown pill matching reference screenshot */}
-        <div className="flex items-center space-x-2 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 px-3 py-1 rounded-full border border-rose-200/60 dark:border-rose-900/60 text-xs font-medium w-fit">
-          <span className="font-semibold">Sales ends:</span>
-          <div className="font-mono flex items-center space-x-1 font-semibold">
-            <span>{countdown.days}d</span>
-            <span>{String(countdown.hours).padStart(2, '0')}h</span>
-            <span>{String(countdown.mins).padStart(2, '0')}m</span>
-            <span>{String(countdown.secs).padStart(2, '0')}s</span>
-          </div>
         </div>
       </div>
 
