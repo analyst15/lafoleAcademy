@@ -9,7 +9,6 @@ import {
   X,
   Mail,
   Lock,
-  Sparkles,
   KeyRound,
   Send
 } from 'lucide-react';
@@ -766,23 +765,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </form>
         )}
 
-        {/* Quick Demo Credentials Assistant */}
-        <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-3">
-          <button
-            id="login-quick-demo-fill"
-            type="button"
-            onClick={() => {
-              setAuthMode('signin');
-              setIdentifier('student@lafole.so');
-              setPassword('lafole2026');
-              showToast("Filled demo credentials: student@lafole.so", "info");
-            }}
-            className="hover:text-[#2EB641] dark:hover:text-[#2EB641] flex items-center space-x-1 cursor-pointer transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-[#2EB641]" />
-            <span>Use Demo Account</span>
-          </button>
-
+        {/* Toggle sign in / sign up */}
+        <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center space-x-2">
             <span>{authMode === 'signin' ? 'New student?' : 'Existing student?'}</span>
             <button
