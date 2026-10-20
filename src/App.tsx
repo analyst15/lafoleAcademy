@@ -1156,14 +1156,8 @@ export default function App() {
                 <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
                   Progress Tracker
                 </button>
-                <button onClick={() => navigateTo('instructor')} className="hover:text-[#22C55E]">
-                  Instructor Studio
-                </button>
                 <button onClick={() => navigateTo('contact')} className="hover:text-[#22C55E]">
                   Contact
-                </button>
-                <button onClick={handleResetProgress} className="hover:text-amber-500">
-                  Reset Demo State
                 </button>
               </div>
             </div>
@@ -1205,12 +1199,6 @@ export default function App() {
                 </button>
                 <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
                   Progress Tracker
-                </button>
-                <button onClick={() => navigateTo('instructor')} className="hover:text-[#22C55E]">
-                  Instructor Studio
-                </button>
-                <button onClick={handleResetProgress} className="hover:text-amber-500">
-                  Reset Demo State
                 </button>
               </div>
             </div>
@@ -1262,9 +1250,6 @@ export default function App() {
                 <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
                   Progress Tracker
                 </button>
-                <button onClick={handleResetProgress} className="hover:text-amber-500">
-                  Reset Demo State
-                </button>
               </div>
             </div>
           </footer>
@@ -1310,9 +1295,6 @@ export default function App() {
                 </button>
                 <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
                   Progress Tracker
-                </button>
-                <button onClick={handleResetProgress} className="hover:text-amber-500">
-                  Reset Demo State
                 </button>
               </div>
             </div>
@@ -1376,14 +1358,8 @@ export default function App() {
                 <button onClick={() => navigateTo('progress')} className="hover:text-[#22C55E]">
                   Progress Tracker
                 </button>
-                <button onClick={() => navigateTo('instructor')} className="hover:text-[#22C55E]">
-                  Instructor Studio
-                </button>
                 <button onClick={() => navigateTo('contact')} className="hover:text-[#22C55E]">
                   Contact
-                </button>
-                <button onClick={handleResetProgress} className="hover:text-amber-500">
-                  Reset Demo State
                 </button>
               </div>
             </div>
