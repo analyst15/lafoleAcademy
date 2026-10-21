@@ -7,7 +7,6 @@ import {
   ChevronDown, 
   ArrowRight,
   Award,
-  Sparkles,
   BookOpen,
   Terminal,
   Cpu,
@@ -368,7 +367,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   onClick={() => setResourcesDropdownOpen(!resourcesDropdownOpen)}
                   className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-[14.5px] sm:text-[15px] font-[500] transition-colors hover:text-black dark:hover:text-white cursor-pointer ${
-                    activeView === 'progress' || activeView === 'instructor' ? 'text-[#22C55E] dark:text-[#22C55E] font-[600]' : 'text-[#374151] dark:text-slate-200'
+                    activeView === 'progress' || activeView === 'dashboard' ? 'text-[#22C55E] dark:text-[#22C55E] font-[600]' : 'text-[#374151] dark:text-slate-200'
                   }`}
                 >
                   <span>Resources</span>
@@ -393,16 +392,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div>
                         <div className="font-semibold">My Student Dashboard</div>
                         <div className="text-[10px] text-slate-400">Courses, certificates & study guides</div>
-                      </div>
-                    </button>
-                    <button 
-                      onClick={() => { setActiveView('instructor'); setResourcesDropdownOpen(false); }}
-                      className="w-full text-left px-3 py-2.5 rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center space-x-2.5 text-slate-700 dark:text-slate-200 cursor-pointer"
-                    >
-                      <Sparkles className="w-4 h-4 text-indigo-500" />
-                      <div>
-                        <div className="font-semibold">Instructor Studio</div>
-                        <div className="text-[10px] text-slate-400">Video hosting & quiz builder</div>
                       </div>
                     </button>
                   </div>
