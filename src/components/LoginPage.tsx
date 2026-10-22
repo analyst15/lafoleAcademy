@@ -1052,8 +1052,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       )}
 
       {/* Subtle Footer info */}
-      <footer className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
-        Lafole Academy • Hoyga Tababarka injineerada Mustaqbalka
+      <footer className="py-6 text-center text-xs text-slate-400 dark:text-slate-500 space-y-1">
+        <div>Lafole Academy • Hoyga Tababarka injineerada Mustaqbalka</div>
+        <div>
+          Website by{' '}
+          <a
+            href="https://techninja.co.ke/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-slate-600 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+          >
+            TechNinja
+          </a>
+        </div>
       </footer>
     </div>
   );

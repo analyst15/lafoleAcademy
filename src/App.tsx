@@ -1144,10 +1144,22 @@ export default function App() {
           {/* Footer Note */}
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-1">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
                 <span>•</span>
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+                <span>•</span>
+                <span>
+                  Website by{' '}
+                  <a
+                    href="https://techninja.co.ke/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                  >
+                    TechNinja
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('catalog')} className="hover:text-[#22C55E]">
@@ -1185,10 +1197,22 @@ export default function App() {
           />
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-1">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
                 <span>•</span>
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+                <span>•</span>
+                <span>
+                  Website by{' '}
+                  <a
+                    href="https://techninja.co.ke/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                  >
+                    TechNinja
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
@@ -1232,10 +1256,22 @@ export default function App() {
           />
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-1">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
                 <span>•</span>
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+                <span>•</span>
+                <span>
+                  Website by{' '}
+                  <a
+                    href="https://techninja.co.ke/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                  >
+                    TechNinja
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
@@ -1278,10 +1314,22 @@ export default function App() {
           />
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-1">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
                 <span>•</span>
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+                <span>•</span>
+                <span>
+                  Website by{' '}
+                  <a
+                    href="https://techninja.co.ke/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                  >
+                    TechNinja
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
@@ -1343,10 +1391,22 @@ export default function App() {
           />
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-1">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
                 <span>•</span>
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+                <span>•</span>
+                <span>
+                  Website by{' '}
+                  <a
+                    href="https://techninja.co.ke/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                  >
+                    TechNinja
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
@@ -1376,10 +1436,22 @@ export default function App() {
           />
           <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-1">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Lafole Academy</span>
                 <span>•</span>
                 <span>Hoyga Tababarka injineerada Mustaqbalka</span>
+                <span>•</span>
+                <span>
+                  Website by{' '}
+                  <a
+                    href="https://techninja.co.ke/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                  >
+                    TechNinja
+                  </a>
+                </span>
               </div>
               <div className="flex items-center space-x-4">
                 <button onClick={() => navigateTo('home')} className="hover:text-[#22C55E]">
