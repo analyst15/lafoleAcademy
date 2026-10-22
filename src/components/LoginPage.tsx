@@ -1060,7 +1060,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             href="https://techninja.co.ke/"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-slate-600 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+            className="font-semibold text-slate-600 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
           >
             TechNinja
           </a>

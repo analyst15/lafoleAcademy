@@ -1155,7 +1155,7 @@ export default function App() {
                     href="https://techninja.co.ke/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
                   >
                     TechNinja
                   </a>
@@ -1208,7 +1208,7 @@ export default function App() {
                     href="https://techninja.co.ke/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
                   >
                     TechNinja
                   </a>
@@ -1267,7 +1267,7 @@ export default function App() {
                     href="https://techninja.co.ke/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
                   >
                     TechNinja
                   </a>
@@ -1325,7 +1325,7 @@ export default function App() {
                     href="https://techninja.co.ke/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
                   >
                     TechNinja
                   </a>
@@ -1402,7 +1402,7 @@ export default function App() {
                     href="https://techninja.co.ke/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
                   >
                     TechNinja
                   </a>
@@ -1447,7 +1447,7 @@ export default function App() {
                     href="https://techninja.co.ke/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-[#22C55E]"
+                    className="font-semibold text-slate-700 dark:text-slate-300 hover:text-[#22C55E] dark:hover:text-[#22C55E] transition-colors"
                   >
                     TechNinja
                   </a>
